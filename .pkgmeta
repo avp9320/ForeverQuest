@@ -1,0 +1,7 @@
+package-as: ForeverQuest
+
+ignore:
+  - .github
+  - .gitignore
+  - CHANGELOG.md
+  - README.md
