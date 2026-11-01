@@ -2,15 +2,20 @@ name: Package ForeverQuest
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
+    paths:
+      - '*.lua'
+      - '*.toc'
+      - 'README.md'
+      - '.pkgmeta'
+      - '.github/workflows/release.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  package:
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -18,7 +23,53 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Package addon and create GitHub release
-        uses: BigWigsMods/packager@v2
+      - name: Read addon version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(awk '/^## Version:/ {print $3; exit}' ForeverQuest.toc)
+          if [ -z "$VERSION" ]; then
+            echo "Could not read version from ForeverQuest.toc"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether this version already exists
+        id: exists
+        shell: bash
+        run: |
+          TAG='${{ steps.version.outputs.tag }}'
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build installable ZIP
+        if: steps.exists.outputs.exists == 'false'
+        shell: bash
+        run: |
+          VERSION='${{ steps.version.outputs.version }}'
+          mkdir -p package/ForeverQuest
+          cp ForeverQuest.toc Core.lua README.md package/ForeverQuest/
+          cd package
+          zip -r "../ForeverQuest-v${VERSION}.zip" ForeverQuest
+
+      - name: Create GitHub release
+        if: steps.exists.outputs.exists == 'false'
         env:
-          GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          VERSION='${{ steps.version.outputs.version }}'
+          TAG='${{ steps.version.outputs.tag }}'
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"
+          gh release create "$TAG" "ForeverQuest-v${VERSION}.zip" \
+            --title "ForeverQuest v${VERSION}" \
+            --notes "Automated installable release for WoW: Forever."
+
+      - name: Already released
+        if: steps.exists.outputs.exists == 'true'
+        run: echo "Version ${{ steps.version.outputs.version }} already has a release tag; nothing to do."
