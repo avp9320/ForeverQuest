@@ -52,7 +52,7 @@ jobs:
         run: |
           VERSION='${{ steps.version.outputs.version }}'
           mkdir -p package/ForeverQuest
-          cp ForeverQuest.toc Core.lua README.md package/ForeverQuest/
+          cp ForeverQuest.toc *.lua README.md package/ForeverQuest/
           cd package
           zip -r "../ForeverQuest-v${VERSION}.zip" ForeverQuest
 
