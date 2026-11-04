@@ -1,7 +1,7 @@
 local ADDON_NAME = ...
 
 local FQ = CreateFrame("Frame")
-local VERSION = "0.1.0"
+local VERSION = "0.1.3"
 
 local defaults = {
     locked = true,
@@ -478,6 +478,8 @@ local function UpdateArrow()
 end
 
 frame:SetScript("OnUpdate", function(_, elapsed)
+    if not ForeverQuestDB then return end
+
     state.refreshElapsed = state.refreshElapsed + elapsed
     state.arrowElapsed = state.arrowElapsed + elapsed
 
