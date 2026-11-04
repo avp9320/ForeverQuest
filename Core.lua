@@ -1,7 +1,7 @@
 local ADDON_NAME = ...
 
 local FQ = CreateFrame("Frame")
-local VERSION = "0.2.0"
+local VERSION = "0.2.1"
 
 local defaults = {
     locked = true,
@@ -130,6 +130,27 @@ local function GetActiveQuestPins(mapID)
     return pins
 end
 
+-- Keep location facts separate from UI/selection. Exact live client
+-- waypoints always take priority; these are explicitly approximate fallbacks.
+local function CuratedLocation(questID, complete)
+    local entry = ForeverQuestData and ForeverQuestData[questID]
+    if type(entry) ~= "table" then return nil end
+    local point = complete and entry.turnIn or entry.objective
+    if not point or not entry.mapID then return nil end
+    return entry.mapID, point.x, point.y, point.area, entry.confidence
+end
+
+local function PlayerMapDistance(mapID, x, y)
+    if not (mapID and x and y and C_Map and C_Map.GetPlayerMapPosition) then return nil end
+    local ok, pos = pcall(C_Map.GetPlayerMapPosition, mapID, "player")
+    if not ok or not pos or not pos.GetXY then return nil end
+    local good, px, py = pcall(pos.GetXY, pos)
+    if good and type(px) == "number" and type(py) == "number" then
+        local dx, dy = x - px, y - py
+        return math.sqrt(dx * dx + dy * dy)
+    end
+end
+
 local function GetQuestDistance(questID)
     if not (C_QuestLog and C_QuestLog.GetDistanceSqToQuest) then
         return nil, false
@@ -212,14 +233,28 @@ local function CollectQuests()
             local complete = IsQuestComplete(questID)
             local distance, onContinent = GetQuestDistance(questID)
             local waypointMap, waypointX, waypointY = GetWaypoint(questID, currentMap)
+            local waypointSource = waypointMap and "client" or nil
+            local waypointArea, waypointConfidence
             if not waypointMap and mapPins[questID] then
                 waypointMap = currentMap
                 waypointX, waypointY = mapPins[questID].x, mapPins[questID].y
+                waypointSource = "client-map-pin"
             end
-            local sameMap = waypointMap and currentMap and waypointMap == currentMap or false
+            if not waypointMap then
+                waypointMap, waypointX, waypointY, waypointArea,
+                    waypointConfidence = CuratedLocation(questID, complete)
+                if waypointMap then waypointSource = "curated" end
+            end
+            local mapDistance = PlayerMapDistance(waypointMap, waypointX, waypointY)
+            local sameMap = mapDistance ~= nil
 
+            -- Prioritize actual objective positions where we have them. The
+            -- quest-log distance can point toward a turn-in NPC even when a
+            -- quest has outstanding kills/collections, so it is the fallback.
             local score
-            if distance and onContinent then
+            if mapDistance then
+                score = mapDistance * 100000
+            elseif distance and onContinent then
                 score = distance
             elseif sameMap then
                 score = 2500
@@ -230,7 +265,7 @@ local function CollectQuests()
             end
 
             if sameMap then
-                score = score - 600
+                score = math.max(0, score - math.min(600, score * 0.15))
             end
             -- Do not give completed quests an artificial distance bonus.
             -- Turn-ins remain tracked, but unfinished objectives should be
@@ -247,6 +282,10 @@ local function CollectQuests()
                 waypointX = waypointX,
                 waypointY = waypointY,
                 waypointText = GetWaypointText(questID),
+                waypointSource = waypointSource,
+                waypointArea = waypointArea,
+                waypointConfidence = waypointConfidence,
+                mapDistance = mapDistance,
                 score = score,
                 logIndex = index,
             })
@@ -340,16 +379,45 @@ end
 local function NavigateToFocus()
     local quest = FindQuest(state.focusQuestID)
     if not quest then Print("No focused quest."); return end
-    if not (C_SuperTrack and type(C_SuperTrack.SetSuperTrackedQuestID) == "function") then
-        Print("Blizzard quest navigation is unavailable here.")
-        return
+
+    -- For a curated objective, the game has no usable quest waypoint.
+    -- Set a normal Blizzard map waypoint on explicit user request only.
+    if quest.waypointSource == "curated" and quest.waypointMap
+        and quest.waypointX and quest.waypointY
+        and C_Map and type(C_Map.SetUserWaypoint) == "function"
+        and UiMapPoint and type(UiMapPoint.CreateFromCoordinates) == "function" then
+        local allowed = true
+        if type(C_Map.CanSetUserWaypointOnMap) == "function" then
+            local ok, can = pcall(C_Map.CanSetUserWaypointOnMap, quest.waypointMap)
+            allowed = ok and can
+        end
+        if allowed then
+            local ok, set = pcall(function()
+                local point = UiMapPoint.CreateFromCoordinates(
+                    quest.waypointMap, quest.waypointX, quest.waypointY)
+                return C_Map.SetUserWaypoint(point)
+            end)
+            if ok and set ~= false then
+                if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+                    pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
+                end
+                Print(string.format("Approximate %s waypoint: %.1f, %.1f (%s).",
+                    quest.title, quest.waypointX * 100, quest.waypointY * 100,
+                    quest.waypointConfidence == "classic-fallback"
+                        and "Classic fallback" or "Forever guide"))
+                return
+            end
+        end
     end
-    local ok = pcall(C_SuperTrack.SetSuperTrackedQuestID, quest.questID)
-    if ok then
-        Print("Blizzard navigation is now tracking " .. quest.title .. ".")
-    else
-        Print("The client blocked changing the tracked quest.")
+
+    if C_SuperTrack and type(C_SuperTrack.SetSuperTrackedQuestID) == "function" then
+        local ok = pcall(C_SuperTrack.SetSuperTrackedQuestID, quest.questID)
+        if ok then
+            Print("Blizzard quest navigation now tracks " .. quest.title .. ".")
+            return
+        end
     end
+    Print("No client-supported waypoint is available for this quest.")
 end
 
 local function PickAutoQuest()
@@ -553,6 +621,14 @@ frame:SetScript("OnEnter", function(self)
         if quest.waypointText then
             GameTooltip:AddLine("Next step: " .. quest.waypointText, 0.65, 0.90, 1.0, true)
         end
+        if quest.waypointSource == "curated" then
+            GameTooltip:AddLine(string.format("Approx. location: %.1f, %.1f (%s)",
+                quest.waypointX * 100, quest.waypointY * 100,
+                quest.waypointArea or "search area"), 0.7, 0.85, 1, true)
+            GameTooltip:AddLine(quest.waypointConfidence == "classic-fallback"
+                and "Unverified Classic location; Forever may differ"
+                or "Forever beta guide location; verify in game", 0.65, 0.65, 0.65, true)
+        end
         local area = GetAreaQuests(quest)
         if #area > 1 then
             GameTooltip:AddLine("Possibly in the same area:", 0.50, 0.90, 0.55)
@@ -606,7 +682,14 @@ local function RefreshFocus()
         objectiveText = quest.waypointText
     end
     frame.objective:SetText(objectiveText)
-    frame.distance:SetText(FormatDistance(quest.distance))
+    -- Avoid presenting an unrelated quest-log distance as distance to our
+    -- approximate objective; show map coordinates instead when using fallback.
+    if quest.waypointSource == "curated" and quest.waypointX then
+        frame.distance:SetText(string.format("~%.0f,%.0f",
+            quest.waypointX * 100, quest.waypointY * 100))
+    else
+        frame.distance:SetText(FormatDistance(quest.distance))
+    end
     frame.group:SetText(quest.nearbyCount > 0 and ("+" .. quest.nearbyCount) or "")
     frame.group:SetShown(quest.nearbyCount > 0)
     UpdateTitleLayout()
@@ -620,19 +703,23 @@ end
 
 local function UpdateArrow()
     local questID = state.focusQuestID
-    local mapID = GetBestMap()
+    local quest = FindQuest(questID)
+    local mapID = quest and quest.waypointMap or GetBestMap()
     if not questID or not mapID or not (C_Map and C_Map.GetPlayerMapPosition) then
         ShowDirectionArrow(false)
         return
     end
 
-    local quest = FindQuest(questID)
-    local waypointMap = quest and quest.waypointMap
     local targetX, targetY = quest and quest.waypointX, quest and quest.waypointY
-    if not waypointMap then
+    if not targetX or not targetY then
+        local waypointMap
         waypointMap, targetX, targetY = GetWaypoint(questID, mapID)
+        if waypointMap ~= mapID then
+            ShowDirectionArrow(false)
+            return
+        end
     end
-    if waypointMap ~= mapID or not targetX or not targetY then
+    if not targetX or not targetY then
         ShowDirectionArrow(false)
         return
     end
@@ -643,8 +730,8 @@ local function UpdateArrow()
         return
     end
 
-    local playerX, playerY = position:GetXY()
-    if not playerX or not playerY then
+    local safeXY, playerX, playerY = pcall(position.GetXY, position)
+    if not safeXY or type(playerX) ~= "number" or type(playerY) ~= "number" then
         ShowDirectionArrow(false)
         return
     end
