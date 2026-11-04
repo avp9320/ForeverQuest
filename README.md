@@ -4,11 +4,12 @@ A compact smart quest focus and navigation addon for **WoW: Forever**.
 
 ForeverQuest is built around one idea: **lots of quest information should be available, but very little of it should need to stay on your screen.**
 
-## v0.1.0
+## v0.1.4
 
 The first playable version provides:
 
-- A compact 286x64 quest focus card
+- A compact 258x46 two-line quest focus card: title and distance together, objective below
+- A subtle, translucent tracker-like appearance (no heavy tooltip border or permanent AUTO label)
 - Automatic nearby quest selection
 - Same-zone quest preference
 - Current objective/progress text

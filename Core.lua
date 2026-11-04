@@ -1,7 +1,7 @@
 local ADDON_NAME = ...
 
 local FQ = CreateFrame("Frame")
-local VERSION = "0.1.3"
+local VERSION = "0.1.4"
 
 local defaults = {
     locked = true,
@@ -248,50 +248,72 @@ local function PickAutoQuest()
 end
 
 local frame = CreateFrame("Button", "ForeverQuestFocusFrame", UIParent, "BackdropTemplate")
-frame:SetSize(286, 64)
+-- Two compact tracker lines: quest + distance, then the current objective.
+-- Don't impersonate a full quest-log window or show an always-on AUTO badge.
+frame:SetSize(258, 46)
 frame:SetFrameStrata("MEDIUM")
 frame:SetClampedToScreen(true)
 frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 frame:EnableMouseWheel(true)
 frame:SetBackdrop({
     bgFile = "Interface\\Buttons\\WHITE8X8",
-    edgeFile = "Interface\\Buttons\\WHITE8X8",
-    edgeSize = 1,
 })
-frame:SetBackdropColor(0.025, 0.035, 0.05, 0.90)
-frame:SetBackdropBorderColor(0.18, 0.27, 0.38, 0.95)
+frame:SetBackdropColor(0.025, 0.025, 0.03, 0.66)
+
+frame.accent = frame:CreateTexture(nil, "ARTWORK")
+frame.accent:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -3)
+frame.accent:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 0, 3)
+frame.accent:SetWidth(2)
+frame.accent:SetColorTexture(0.73, 0.60, 0.25, 0.9)
 
 frame.arrow = frame:CreateTexture(nil, "ARTWORK")
-frame.arrow:SetSize(30, 30)
-frame.arrow:SetPoint("LEFT", 9, 0)
+frame.arrow:SetSize(17, 17)
+frame.arrow:SetPoint("TOPLEFT", frame, "TOPLEFT", 9, -6)
 frame.arrow:SetTexture("Interface\\MINIMAP\\MinimapArrow")
-frame.arrow:SetAlpha(0.95)
-
-frame.mode = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-frame.mode:SetPoint("TOPRIGHT", -8, -6)
-frame.mode:SetTextColor(0.45, 0.75, 1.0)
+frame.arrow:SetAlpha(0.9)
+frame.arrow:Hide()
 
 frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-frame.title:SetPoint("TOPLEFT", frame.arrow, "TOPRIGHT", 8, -1)
-frame.title:SetPoint("RIGHT", frame.mode, "LEFT", -6, 0)
 frame.title:SetJustifyH("LEFT")
 frame.title:SetWordWrap(false)
 frame.title:SetTextColor(1, 0.82, 0.22)
 
+frame.distance = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+frame.distance:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -9, -7)
+frame.distance:SetWidth(54)
+frame.distance:SetJustifyH("RIGHT")
+frame.distance:SetTextColor(0.72, 0.72, 0.72)
+frame.distance:SetText("")
+
 frame.objective = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-frame.objective:SetPoint("TOPLEFT", frame.title, "BOTTOMLEFT", 0, -5)
-frame.objective:SetPoint("RIGHT", -8, 0)
+frame.objective:SetPoint("TOPLEFT", frame, "TOPLEFT", 11, -27)
+frame.objective:SetPoint("RIGHT", frame, "RIGHT", -9, 0)
 frame.objective:SetJustifyH("LEFT")
 frame.objective:SetWordWrap(false)
-frame.objective:SetTextColor(0.92, 0.94, 0.98)
+frame.objective:SetTextColor(0.90, 0.90, 0.90)
 
-frame.distance = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-frame.distance:SetPoint("BOTTOMLEFT", frame.objective, "BOTTOMLEFT", 0, -16)
-frame.distance:SetTextColor(0.55, 0.82, 1.0)
+local function UpdateTitleLayout()
+    frame.title:ClearAllPoints()
+    frame.title:SetPoint("TOPLEFT", frame, "TOPLEFT",
+        frame.arrow:IsShown() and 31 or 11, -7)
+    if frame.distance:GetText() ~= "" then
+        frame.title:SetPoint("RIGHT", frame.distance, "LEFT", -5, 0)
+    else
+        frame.title:SetPoint("RIGHT", frame, "RIGHT", -9, 0)
+    end
+end
 
-frame.hint = frame:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-frame.hint:SetPoint("BOTTOMRIGHT", -8, 6)
-frame.hint:SetText("")
+local function ShowDirectionArrow(show)
+    if show and not frame.arrow:IsShown() then
+        frame.arrow:Show()
+        UpdateTitleLayout()
+    elseif not show and frame.arrow:IsShown() then
+        frame.arrow:Hide()
+        UpdateTitleLayout()
+    end
+end
+
+UpdateTitleLayout()
 
 local function SavePosition()
     local point, _, relativePoint, x, y = frame:GetPoint(1)
@@ -304,12 +326,11 @@ end
 local function ApplyLockState()
     frame:SetMovable(not ForeverQuestDB.locked)
     frame:RegisterForDrag("LeftButton")
+    -- Blue accent means the card is draggable; no overlay text obscuring quests.
     if ForeverQuestDB.locked then
-        frame:SetBackdropBorderColor(0.18, 0.27, 0.38, 0.95)
-        frame.hint:SetText("")
+        frame.accent:SetColorTexture(0.73, 0.60, 0.25, 0.9)
     else
-        frame:SetBackdropBorderColor(0.25, 0.75, 1.0, 1.0)
-        frame.hint:SetText("DRAG TO MOVE")
+        frame.accent:SetColorTexture(0.28, 0.72, 1.0, 1.0)
     end
 end
 
@@ -384,7 +405,8 @@ frame:SetScript("OnEnter", function(self)
     GameTooltip:SetText("ForeverQuest")
     GameTooltip:AddLine("Left click / mouse wheel: cycle quests", 0.8, 0.8, 0.8)
     GameTooltip:AddLine("Right click: return to AUTO", 0.8, 0.8, 0.8)
-    GameTooltip:AddLine("/fq unlock to move", 0.8, 0.8, 0.8)
+    GameTooltip:AddLine("Mode: " .. (ForeverQuestDB and ForeverQuestDB.mode or "AUTO"), 0.8, 0.8, 0.8)
+    GameTooltip:AddLine(ForeverQuestDB and ForeverQuestDB.locked and "/fq unlock to move" or "Drag to move, /fq lock to finish", 0.8, 0.8, 0.8)
     GameTooltip:Show()
 end)
 
@@ -414,15 +436,15 @@ local function RefreshFocus()
         frame.title:SetText("No active quests")
         frame.objective:SetText("Pick up a quest and ForeverQuest will focus it here.")
         frame.distance:SetText("")
-        frame.mode:SetText("AUTO")
-        frame.arrow:Hide()
+        ShowDirectionArrow(false)
+        UpdateTitleLayout()
         return
     end
 
     frame.title:SetText(quest.title)
     frame.objective:SetText(ObjectiveText(quest.questID, quest.complete))
     frame.distance:SetText(FormatDistance(quest.distance))
-    frame.mode:SetText(ForeverQuestDB.mode == "MANUAL" and "MANUAL" or "AUTO")
+    UpdateTitleLayout()
 
     if quest.complete then
         frame.title:SetTextColor(0.35, 1.0, 0.45)
@@ -435,32 +457,32 @@ local function UpdateArrow()
     local questID = state.focusQuestID
     local mapID = GetBestMap()
     if not questID or not mapID or not (C_Map and C_Map.GetPlayerMapPosition) then
-        frame.arrow:Hide()
+        ShowDirectionArrow(false)
         return
     end
 
     local waypointMap, targetX, targetY = GetWaypoint(questID, mapID)
     if waypointMap ~= mapID or not targetX or not targetY then
-        frame.arrow:Hide()
+        ShowDirectionArrow(false)
         return
     end
 
     local ok, position = pcall(C_Map.GetPlayerMapPosition, mapID, "player")
     if not ok or not position or not position.GetXY then
-        frame.arrow:Hide()
+        ShowDirectionArrow(false)
         return
     end
 
     local playerX, playerY = position:GetXY()
     if not playerX or not playerY then
-        frame.arrow:Hide()
+        ShowDirectionArrow(false)
         return
     end
 
     local dx = targetX - playerX
     local dy = targetY - playerY
     if (dx * dx + dy * dy) < 0.000001 then
-        frame.arrow:Hide()
+        ShowDirectionArrow(false)
         return
     end
 
@@ -471,9 +493,9 @@ local function UpdateArrow()
 
     if frame.arrow.SetRotation then
         frame.arrow:SetRotation(relativeAngle)
-        frame.arrow:Show()
+        ShowDirectionArrow(true)
     else
-        frame.arrow:Hide()
+        ShowDirectionArrow(false)
     end
 end
 
