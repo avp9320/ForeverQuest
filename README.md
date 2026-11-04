@@ -4,7 +4,7 @@ A compact smart quest focus and navigation addon for **WoW: Forever**.
 
 ForeverQuest is built around one idea: **lots of quest information should be available, but very little of it should need to stay on your screen.**
 
-## v0.1.4
+## v0.1.5
 
 The first playable version provides:
 
@@ -15,7 +15,7 @@ The first playable version provides:
 - Current objective/progress text
 - Distance to the focused quest when the client exposes it
 - Directional arrow when WoW: Forever provides a usable waypoint
-- Completed-quest/turn-in prioritization
+- Unfinished-quest prioritization; turn-in-ready quests remain available manually and become AUTO's fallback after unfinished quests are exhausted
 - Anti-thrashing logic so AUTO mode does not constantly bounce between similar quests
 - Manual quest cycling with left click or mouse wheel
 - Right click to return to AUTO mode

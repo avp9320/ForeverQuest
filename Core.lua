@@ -1,7 +1,7 @@
 local ADDON_NAME = ...
 
 local FQ = CreateFrame("Frame")
-local VERSION = "0.1.4"
+local VERSION = "0.1.5"
 
 local defaults = {
     locked = true,
@@ -191,9 +191,9 @@ local function CollectQuests()
             if sameMap then
                 score = score - 600
             end
-            if complete then
-                score = score - 900
-            end
+            -- Do not give completed quests an artificial distance bonus.
+            -- Turn-ins remain tracked, but unfinished objectives should be
+            -- the default focus while any unfinished quest is available.
 
             table.insert(state.quests, {
                 questID = questID,
@@ -209,6 +209,12 @@ local function CollectQuests()
     end
 
     table.sort(state.quests, function(a, b)
+        -- The card is a next-objective assistant, not a turn-in reminder.
+        -- Keep completed quests available in MANUAL and as a fallback when
+        -- every remaining quest is ready to turn in.
+        if a.complete ~= b.complete then
+            return not a.complete
+        end
         if a.score == b.score then
             return a.questID < b.questID
         end
@@ -235,6 +241,12 @@ local function PickAutoQuest()
 
     local current = FindQuest(state.focusQuestID)
     if current and ForeverQuestDB.mode == "AUTO" then
+        -- A quest becoming ready for turn-in must immediately yield to a
+        -- nearby unfinished quest, even if the old quest is very close.
+        -- Do not let the anti-thrashing rule preserve the completed quest.
+        if current.complete ~= best.complete then
+            return best
+        end
         -- Keep the current focus unless another quest is meaningfully better.
         -- This prevents the card from bouncing between nearby objectives.
         local improvement = current.score - best.score
