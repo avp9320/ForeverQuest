@@ -1,7 +1,7 @@
 local ADDON_NAME = ...
 
 local FQ = CreateFrame("Frame")
-local VERSION = "0.1.5"
+local VERSION = "0.2.0"
 
 local defaults = {
     locked = true,
@@ -94,6 +94,42 @@ local function GetWaypoint(questID, mapID)
     end
 end
 
+-- Native Forever waypoint text offers useful next-step guidance when
+-- available; unlike a guessed quest database, this describes live client data.
+local function GetWaypointText(questID)
+    if not (C_QuestLog and C_QuestLog.GetNextWaypointText) then return nil end
+    local ok, value = pcall(C_QuestLog.GetNextWaypointText, questID)
+    if ok and type(value) == "string" and value ~= "" then return value end
+end
+
+-- Some quests expose map POIs even when GetNextWaypoint returns nothing.
+-- Treat these as approximate objective regions, NOT exact mob positions.
+local function GetActiveQuestPins(mapID)
+    local pins = {}
+    if not mapID or not (C_QuestLog and C_QuestLog.GetQuestsOnMap) then
+        return pins
+    end
+    local ok, list = pcall(C_QuestLog.GetQuestsOnMap, mapID)
+    if not ok or type(list) ~= "table" then return pins end
+    for _, pin in ipairs(list) do
+        local safe, questID, x, y = pcall(function()
+            if type(pin) ~= "table" or pin.isQuestStart or pin.inProgress == false then
+                return nil
+            end
+            local id, px, py = pin.questID, pin.x, pin.y
+            if type(id) == "number" and type(px) == "number"
+                and type(py) == "number" and px >= 0 and px <= 1
+                and py >= 0 and py <= 1 then
+                return id, px, py
+            end
+        end)
+        if safe and questID and not pins[questID] then
+            pins[questID] = {x = x, y = y}
+        end
+    end
+    return pins
+end
+
 local function GetQuestDistance(questID)
     if not (C_QuestLog and C_QuestLog.GetDistanceSqToQuest) then
         return nil, false
@@ -167,6 +203,7 @@ local function CollectQuests()
     end
 
     local currentMap = GetBestMap()
+    local mapPins = GetActiveQuestPins(currentMap)
 
     for index = 1, numEntries do
         local infoOK, info = pcall(C_QuestLog.GetInfo, index)
@@ -174,7 +211,11 @@ local function CollectQuests()
             local questID = info.questID
             local complete = IsQuestComplete(questID)
             local distance, onContinent = GetQuestDistance(questID)
-            local waypointMap = GetWaypoint(questID, currentMap)
+            local waypointMap, waypointX, waypointY = GetWaypoint(questID, currentMap)
+            if not waypointMap and mapPins[questID] then
+                waypointMap = currentMap
+                waypointX, waypointY = mapPins[questID].x, mapPins[questID].y
+            end
             local sameMap = waypointMap and currentMap and waypointMap == currentMap or false
 
             local score
@@ -202,9 +243,39 @@ local function CollectQuests()
                 distance = distance,
                 onContinent = onContinent,
                 sameMap = sameMap,
+                waypointMap = waypointMap,
+                waypointX = waypointX,
+                waypointY = waypointY,
+                waypointText = GetWaypointText(questID),
                 score = score,
                 logIndex = index,
             })
+        end
+    end
+
+    -- Group only quests with known, nearby map points on the same map.
+    -- 0.045 is a *map-relative* radius, not a precise yardage claim.
+    -- This identifies candidate quest areas, not guaranteed shared kills.
+    for _, quest in ipairs(state.quests) do
+        quest.nearbyCount = 0
+        if not quest.complete and quest.sameMap and quest.waypointX and quest.waypointY then
+            for _, other in ipairs(state.quests) do
+                if quest ~= other and not other.complete and other.sameMap
+                    and other.waypointMap == quest.waypointMap
+                    and other.waypointX and other.waypointY then
+                    local dx, dy = quest.waypointX - other.waypointX,
+                        quest.waypointY - other.waypointY
+                    if dx * dx + dy * dy <= 0.045 * 0.045 then
+                        quest.nearbyCount = quest.nearbyCount + 1
+                    end
+                end
+            end
+            if quest.nearbyCount > 0 then
+                -- Prefer a nearby cluster, but do not send the player far
+                -- across the zone for a distant cluster.
+                quest.score = quest.score - math.min(quest.nearbyCount, 3)
+                    * math.min(220, math.max(0, quest.score) * 0.12)
+            end
         end
     end
 
@@ -230,6 +301,54 @@ local function FindQuest(questID)
         if quest.questID == questID then
             return quest
         end
+    end
+end
+
+local function GetAreaQuests(quest)
+    local area = {}
+    if not quest or quest.complete or not quest.sameMap
+        or not quest.waypointX or not quest.waypointY then return area end
+    for _, other in ipairs(state.quests) do
+        if not other.complete and other.sameMap
+            and other.waypointMap == quest.waypointMap
+            and other.waypointX and other.waypointY then
+            local dx, dy = quest.waypointX - other.waypointX,
+                quest.waypointY - other.waypointY
+            if dx * dx + dy * dy <= 0.045 * 0.045 then
+                area[#area + 1] = other
+            end
+        end
+    end
+    return area
+end
+
+local function PrintArea()
+    local quest = FindQuest(state.focusQuestID)
+    if not quest then Print("No focused quest."); return end
+    local area = GetAreaQuests(quest)
+    if #area == 0 then
+        Print("No trusted nearby quest positions for this objective. Not guessing a route.")
+        return
+    end
+    Print("Possible same-area objectives (" .. #area .. "; approximate map positions):")
+    for i = 1, math.min(#area, 5) do
+        local q = area[i]
+        Print("  " .. q.title .. ": " .. ObjectiveText(q.questID, q.complete))
+    end
+end
+
+local function NavigateToFocus()
+    local quest = FindQuest(state.focusQuestID)
+    if not quest then Print("No focused quest."); return end
+    if not (C_SuperTrack and type(C_SuperTrack.SetSuperTrackedQuestID) == "function") then
+        Print("Blizzard quest navigation is unavailable here.")
+        return
+    end
+    local ok = pcall(C_SuperTrack.SetSuperTrackedQuestID, quest.questID)
+    if ok then
+        Print("Blizzard navigation is now tracking " .. quest.title .. ".")
+    else
+        Print("The client blocked changing the tracked quest.")
     end
 end
 
@@ -304,11 +423,20 @@ frame.objective:SetJustifyH("LEFT")
 frame.objective:SetWordWrap(false)
 frame.objective:SetTextColor(0.90, 0.90, 0.90)
 
+frame.group = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+frame.group:SetPoint("RIGHT", frame.distance, "LEFT", -3, 0)
+frame.group:SetWidth(24)
+frame.group:SetJustifyH("RIGHT")
+frame.group:SetTextColor(0.45, 0.86, 0.50)
+frame.group:Hide()
+
 local function UpdateTitleLayout()
     frame.title:ClearAllPoints()
     frame.title:SetPoint("TOPLEFT", frame, "TOPLEFT",
         frame.arrow:IsShown() and 31 or 11, -7)
-    if frame.distance:GetText() ~= "" then
+    if frame.group:IsShown() then
+        frame.title:SetPoint("RIGHT", frame.group, "LEFT", -5, 0)
+    elseif frame.distance:GetText() ~= "" then
         frame.title:SetPoint("RIGHT", frame.distance, "LEFT", -5, 0)
     else
         frame.title:SetPoint("RIGHT", frame, "RIGHT", -9, 0)
@@ -396,7 +524,9 @@ frame:SetScript("OnClick", function(_, button)
         return
     end
 
-    if button == "RightButton" then
+    if button == "LeftButton" and IsShiftKeyDown and IsShiftKeyDown() then
+        NavigateToFocus()
+    elseif button == "RightButton" then
         ForeverQuestDB.mode = "AUTO"
         ForeverQuestDB.manualQuestID = nil
         SetFocus(PickAutoQuest())
@@ -417,6 +547,22 @@ frame:SetScript("OnEnter", function(self)
     GameTooltip:SetText("ForeverQuest")
     GameTooltip:AddLine("Left click / mouse wheel: cycle quests", 0.8, 0.8, 0.8)
     GameTooltip:AddLine("Right click: return to AUTO", 0.8, 0.8, 0.8)
+    GameTooltip:AddLine("Shift-left click: navigate using Blizzard's quest tracking", 0.8, 0.8, 0.8)
+    local quest = FindQuest(state.focusQuestID)
+    if quest then
+        if quest.waypointText then
+            GameTooltip:AddLine("Next step: " .. quest.waypointText, 0.65, 0.90, 1.0, true)
+        end
+        local area = GetAreaQuests(quest)
+        if #area > 1 then
+            GameTooltip:AddLine("Possibly in the same area:", 0.50, 0.90, 0.55)
+            for i = 1, math.min(#area, 4) do
+                local q = area[i]
+                GameTooltip:AddLine("  " .. q.title .. " — " .. ObjectiveText(q.questID, false),
+                    0.85, 0.85, 0.85, true)
+            end
+        end
+    end
     GameTooltip:AddLine("Mode: " .. (ForeverQuestDB and ForeverQuestDB.mode or "AUTO"), 0.8, 0.8, 0.8)
     GameTooltip:AddLine(ForeverQuestDB and ForeverQuestDB.locked and "/fq unlock to move" or "Drag to move, /fq lock to finish", 0.8, 0.8, 0.8)
     GameTooltip:Show()
@@ -448,14 +594,21 @@ local function RefreshFocus()
         frame.title:SetText("No active quests")
         frame.objective:SetText("Pick up a quest and ForeverQuest will focus it here.")
         frame.distance:SetText("")
+        frame.group:Hide()
         ShowDirectionArrow(false)
         UpdateTitleLayout()
         return
     end
 
     frame.title:SetText(quest.title)
-    frame.objective:SetText(ObjectiveText(quest.questID, quest.complete))
+    local objectiveText = ObjectiveText(quest.questID, quest.complete)
+    if objectiveText == "Quest in progress" and quest.waypointText then
+        objectiveText = quest.waypointText
+    end
+    frame.objective:SetText(objectiveText)
     frame.distance:SetText(FormatDistance(quest.distance))
+    frame.group:SetText(quest.nearbyCount > 0 and ("+" .. quest.nearbyCount) or "")
+    frame.group:SetShown(quest.nearbyCount > 0)
     UpdateTitleLayout()
 
     if quest.complete then
@@ -473,7 +626,12 @@ local function UpdateArrow()
         return
     end
 
-    local waypointMap, targetX, targetY = GetWaypoint(questID, mapID)
+    local quest = FindQuest(questID)
+    local waypointMap = quest and quest.waypointMap
+    local targetX, targetY = quest and quest.waypointX, quest and quest.waypointY
+    if not waypointMap then
+        waypointMap, targetX, targetY = GetWaypoint(questID, mapID)
+    end
     if waypointMap ~= mapID or not targetX or not targetY then
         ShowDirectionArrow(false)
         return
@@ -557,6 +715,11 @@ SlashCmdList.FOREVERQUEST = function(message)
         ForeverQuestDB.manualQuestID = nil
         RefreshFocus()
         Print("AUTO mode")
+    elseif command == "area" then
+        CollectQuests()
+        PrintArea()
+    elseif command == "navigate" then
+        NavigateToFocus()
     elseif command == "debug" then
         CollectQuests()
         DebugDump()
@@ -569,7 +732,7 @@ SlashCmdList.FOREVERQUEST = function(message)
         frame:SetPoint(defaults.point, UIParent, defaults.relativePoint, defaults.x, defaults.y)
         Print("position reset")
     else
-        Print("/fq unlock, /fq lock, /fq auto, /fq debug, /fq reset")
+        Print("/fq unlock, /fq lock, /fq auto, /fq area, /fq navigate, /fq debug, /fq reset")
     end
 end
 

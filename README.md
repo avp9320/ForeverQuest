@@ -4,13 +4,17 @@ A compact smart quest focus and navigation addon for **WoW: Forever**.
 
 ForeverQuest is built around one idea: **lots of quest information should be available, but very little of it should need to stay on your screen.**
 
-## v0.1.5
+## v0.2.0
 
 The first playable version provides:
 
 - A compact 258x46 two-line quest focus card: title and distance together, objective below
 - A subtle, translucent tracker-like appearance (no heavy tooltip border or permanent AUTO label)
-- Automatic nearby quest selection
+- Automatic nearest relevant *unfinished* quest selection, with a modest preference for quests whose map waypoints are clustered
+- An optional `+N` badge when other unfinished quest objectives appear near the focused objective on the same map (estimated from live map pins/waypoints)
+- Hover details explaining possible same-area quest tasks, plus the client's next-waypoint description when available
+- Shift-left-click to make Blizzard navigate to the focused quest (never overrides the selected waypoint automatically)
+- `/fq area` to list estimated co-located quests, or `/fq navigate` to use Blizzard's built-in quest tracking
 - Same-zone quest preference
 - Current objective/progress text
 - Distance to the focused quest when the client exposes it
@@ -27,6 +31,8 @@ The first playable version provides:
 - `/fq unlock` - unlock the focus card so it can be moved
 - `/fq lock` - lock the card in place
 - `/fq auto` - return to automatic quest selection
+- `/fq area` - list quests whose known objective points appear near your current focused objective
+- `/fq navigate` - tell Blizzard to supertrack the current focused quest
 - `/fq debug` - print useful quest/map/waypoint diagnostics
 - `/fq reset` - reset the card position
 
@@ -44,7 +50,7 @@ Restart WoW after installing a brand-new addon.
 
 ## Design direction
 
-Planned additions include overlapping-objective detection, a contextual quest-item button, map integration, learned Forever-specific quest data, and smarter next-objective suggestions. The goal is to gain the useful parts of large questing addons without turning the game screen into a questing dashboard.
+The first pass of overlapping *areas* is based on client-exposed waypoints, not a full mob spawn/quest database. A contextual quest-item button, full map pickup/turn-in guidance, learned Forever-specific quest data, and improved route planning are still to be built. The goal is to gain the useful parts of large questing addons without turning the game screen into a questing dashboard.
 
 ## License / project policy
 
