@@ -246,7 +246,7 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
                 if candidate.kind == "objective" then hasObjective = true end
                 if candidate.kind == "turnin" then hasTurnin = true end
                 if candidate.kind == "pickup"
-                    and distance(candidate.x, candidate.y, x, y) <= PICKUP_HUB then
+                    and distance(candidate.x, candidate.y, x, y) <= 0.035 then
                     localPickup = true
                 end
             end
