@@ -347,7 +347,7 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
         local phase = phaseForStep(step)
         local best, bestScore, bestDist, bestCluster
         for _, candidate in ipairs(all) do
-            local objectiveAreaPickup = phase == "pickup" and hasObjective and
+            local objectiveAreaPickup = phase == "pickup" and
                 not collectingHub and hasPickupNearObjective()
             local nearObjective = not objectiveAreaPickup
             if objectiveAreaPickup then
