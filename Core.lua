@@ -243,7 +243,7 @@ local function CollectQuests()
             local distance, onContinent = GetQuestDistance(questID)
             local waypointMap, waypointX, waypointY = GetWaypoint(questID, currentMap)
             local waypointSource = waypointMap and "client" or nil
-            local waypointArea, waypointConfidence
+            local waypointArea, waypointConfidence, goalPoints
             if not waypointMap and mapPins[questID] then
                 waypointMap = currentMap
                 waypointX, waypointY = mapPins[questID].x, mapPins[questID].y
@@ -258,9 +258,10 @@ local function CollectQuests()
                     if waypointMap then waypointSource = "curated" end
                 end
             end
-            if not waypointMap and Planner and Planner.GetActivePosition then
-                local location = Planner:GetActivePosition(
-                    questID, complete, currentMap, GetObjectives(questID))
+            if not waypointMap and Planner and Planner.GetActivePositions then
+                goalPoints = Planner:GetActivePositions(
+                    questID, complete, currentMap, GetObjectives(questID), 6)
+                local location = goalPoints[1]
                 if location then
                     waypointMap, waypointX, waypointY = location.mapID, location.x, location.y
                     waypointSource = "database"
@@ -313,6 +314,7 @@ local function CollectQuests()
                 waypointSource = waypointSource,
                 waypointArea = waypointArea,
                 waypointConfidence = waypointConfidence,
+                goalPoints = goalPoints,
                 mapDistance = mapDistance,
                 score = score,
                 logIndex = index,
