@@ -432,6 +432,11 @@ function Planner:GetActivePosition(questID, complete, mapID, statuses)
 end
 
 function Planner:GetChainPreview(questID, maxCount)
+    local chains = _G.ForeverQuestChains
+    if chains and chains.GetPreview then
+        local level=UnitLevel and UnitLevel("player") or nil
+        return chains:GetPreview(questID,level,maxCount)
+    end
     local lib = provider()
     if not lib or not questID then return {} end
     local children = get(lib.Quest, questID, "childQuests")
