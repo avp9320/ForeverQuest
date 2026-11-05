@@ -2,6 +2,7 @@ local ADDON_NAME = ...
 
 local FQ = CreateFrame("Frame")
 local Planner = _G.ForeverQuestPlanner
+local Route = _G.ForeverQuestRoute
 local VERSION = "0.3.0"
 
 local defaults = {
@@ -18,6 +19,10 @@ local state = {
     quests = {},
     focusQuestID = nil,
     pickup = nil,
+    routePlan = nil,
+    routeStop = nil,
+    routeKey = nil,
+    lastRouteSwitch = 0,
     focusScore = nil,
     lastFocusChange = 0,
     refreshElapsed = 0,
@@ -241,6 +246,24 @@ local function CollectQuests()
                 waypointMap = currentMap
                 waypointX, waypointY = mapPins[questID].x, mapPins[questID].y
                 waypointSource = "client-map-pin"
+            end
+            if not waypointMap then
+                -- Prefer documented Forever-specific positions over Classic guesses.
+                local curated = ForeverQuestData and ForeverQuestData[questID]
+                if curated and curated.confidence == "forever-beta" then
+                    waypointMap, waypointX, waypointY, waypointArea,
+                        waypointConfidence = CuratedLocation(questID, complete)
+                    if waypointMap then waypointSource = "curated" end
+                end
+            end
+            if not waypointMap and Planner and Planner.GetActivePosition then
+                local location = Planner:GetActivePosition(questID, complete, currentMap)
+                if location then
+                    waypointMap, waypointX, waypointY = location.mapID, location.x, location.y
+                    waypointSource = "database"
+                    waypointArea = location.entityName
+                    waypointConfidence = location.confidence
+                end
             end
             if not waypointMap then
                 waypointMap, waypointX, waypointY, waypointArea,
@@ -707,6 +730,14 @@ frame:SetScript("OnEnter", function(self)
             end
         end
     end
+    if state.routePlan and state.routePlan.stops and #state.routePlan.stops > 0
+        and Route and Route.Describe then
+        GameTooltip:AddLine("Suggested next stops (approx. map locations):", 0.53, 0.83, 1.0)
+        for i, stop in ipairs(state.routePlan.stops) do
+            GameTooltip:AddLine(tostring(i) .. ". " .. Route:Describe(stop),
+                0.82, 0.82, 0.82, true)
+        end
+    end
     GameTooltip:AddLine("Mode: " .. (ForeverQuestDB and ForeverQuestDB.mode or "AUTO"), 0.8, 0.8, 0.8)
     GameTooltip:AddLine(ForeverQuestDB and ForeverQuestDB.locked and "/fq unlock to move" or "Drag to move, /fq lock to finish", 0.8, 0.8, 0.8)
     GameTooltip:Show()
@@ -715,6 +746,66 @@ end)
 frame:SetScript("OnLeave", function()
     GameTooltip:Hide()
 end)
+
+local function MapXY(mapID)
+    if not (mapID and C_Map and C_Map.GetPlayerMapPosition) then return nil end
+    local ok, pos = pcall(C_Map.GetPlayerMapPosition, mapID, "player")
+    if not ok or not pos or not pos.GetXY then return nil end
+    local safe, x, y = pcall(pos.GetXY, pos)
+    if safe and type(x) == "number" and type(y) == "number" then return x, y end
+end
+
+local function BuildRoute()
+    if not Route or not Route.Build then return nil end
+    local mapID = GetBestMap()
+    local px, py = MapXY(mapID)
+    if not px then return nil end
+    local pickups = {}
+    if Planner and Planner.Available and Planner:Available() then
+        pickups = Planner:GetNearby(mapID, 35)
+    end
+    local plan = Route:Build(state.quests, pickups, mapID, px, py)
+    state.routePlan = plan
+    return plan
+end
+
+local function RouteSelection(plan)
+    local proposed = plan and plan.stops and plan.stops[1]
+    if not proposed then return nil end
+    local current = state.routeStop
+    if current and state.routeKey and GetTime
+        and GetTime() - state.lastRouteSwitch < 9 then
+        for _, stop in ipairs(plan.stops) do
+            if stop.kind == current.kind and stop.questID == current.questID then
+                return stop
+            end
+        end
+    end
+    local key = proposed.kind .. ":" .. tostring(proposed.questID)
+    if key ~= state.routeKey then
+        state.routeKey = key
+        state.lastRouteSwitch = GetTime and GetTime() or 0
+    end
+    return proposed
+end
+
+local function PrintRoute()
+    CollectQuests()
+    RefreshFutureQuests()
+    local plan = BuildRoute()
+    if not plan then
+        Print("Cannot calculate map-relative route at your current location.")
+        return
+    end
+    if #plan.stops == 0 then
+        Print("No location-backed quest stops found. Use /fq data to check database coverage.")
+        return
+    end
+    Print("Suggested next stops (straight-line map estimates, not roads):")
+    for i, stop in ipairs(plan.stops) do
+        Print(tostring(i) .. ". " .. Route:Describe(stop))
+    end
+end
 
 local function RefreshFocus()
     CollectQuests()
@@ -736,13 +827,22 @@ local function RefreshFocus()
     -- A nearby unaccepted quest is often worth grabbing on the way, but
     -- don't interrupt an active objective or nearby completed turn-in.
     state.pickup = nil
+    state.routeStop = nil
     if ForeverQuestDB.mode == "AUTO" then
-        local candidate = NearbyPickup()
-        local questNear = quest and quest.mapDistance and quest.mapDistance <= 0.04
-        if candidate and (not quest or
-            (candidate.distance <= 0.018 and not questNear
-            and (not quest.mapDistance or quest.mapDistance > 0.07))) then
-            state.pickup = candidate
+        local plan = BuildRoute()
+        local stop = RouteSelection(plan)
+        state.routeStop = stop
+        if stop then
+            if stop.kind == "pickup" then
+                state.pickup = {
+                    questID = stop.questID, name = stop.name,
+                    x = stop.x, y = stop.y, mapID = stop.mapID,
+                    confidence = stop.confidence, kind = "quest starter",
+                    distance = stop.distance
+                }
+            else
+                quest = FindQuest(stop.questID) or quest
+            end
         end
     end
 
@@ -755,7 +855,9 @@ local function RefreshFocus()
         frame.objective:SetText("Possible new quest (" .. pickup.kind .. ")")
         frame.distance:SetText(string.format("~%.0f,%.0f",
             pickup.x * 100, pickup.y * 100))
-        frame.group:Hide()
+        local overlap = state.routeStop and state.routeStop.overlapping or 0
+        frame.group:SetText(overlap > 0 and ("+" .. overlap) or "")
+        frame.group:SetShown(overlap > 0)
         UpdateTitleLayout()
         return
     end
@@ -784,8 +886,9 @@ local function RefreshFocus()
     else
         frame.distance:SetText(FormatDistance(quest.distance))
     end
-    frame.group:SetText(quest.nearbyCount > 0 and ("+" .. quest.nearbyCount) or "")
-    frame.group:SetShown(quest.nearbyCount > 0)
+    local overlap = state.routeStop and state.routeStop.overlapping or quest.nearbyCount or 0
+    frame.group:SetText(overlap > 0 and ("+" .. overlap) or "")
+    frame.group:SetShown(overlap > 0)
     UpdateTitleLayout()
 
     if quest.complete then
@@ -874,6 +977,7 @@ local function DebugDump()
     Print("version " .. VERSION .. ", mode " .. tostring(ForeverQuestDB.mode))
     Print("mapID " .. tostring(GetBestMap()) .. ", quests " .. tostring(#state.quests) .. ", focus " .. tostring(state.focusQuestID))
     if Planner then Print(Planner:Status()) end
+    if state.routePlan then Print("routeStops=" .. tostring(#state.routePlan.stops)) end
     local quest = FindQuest(state.focusQuestID)
     if quest then
         local mapID, x, y = GetWaypoint(quest.questID, GetBestMap())
@@ -907,6 +1011,8 @@ SlashCmdList.FOREVERQUEST = function(message)
         PrintPlan()
     elseif command == "data" then
         Print(Planner and Planner:Status() or "Quest data provider unavailable.")
+    elseif command == "route" then
+        PrintRoute()
     elseif command == "navigate" then
         NavigateToFocus()
     elseif command == "debug" then
@@ -921,7 +1027,7 @@ SlashCmdList.FOREVERQUEST = function(message)
         frame:SetPoint(defaults.point, UIParent, defaults.relativePoint, defaults.x, defaults.y)
         Print("position reset")
     else
-        Print("/fq unlock, /fq lock, /fq auto, /fq plan, /fq data, /fq area, /fq navigate, /fq debug, /fq reset")
+        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq plan, /fq data, /fq area, /fq navigate, /fq debug, /fq reset")
     end
 end
 
