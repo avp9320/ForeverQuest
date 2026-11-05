@@ -697,7 +697,8 @@ frame.arrow = frame:CreateTexture(nil, "ARTWORK")
 frame.arrow:SetSize(22, 22)
 frame.arrow:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -4)
 frame.arrow:SetTexture("Interface\\MINIMAP\\MinimapArrow")
-frame.arrow:SetAlpha(0.9)
+frame.arrow:SetAlpha(1)
+frame.arrow:SetVertexColor(0.46, 0.98, 0.56)
 frame.arrow:Hide()
 
 frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -1491,6 +1492,16 @@ local function UpdateArrow()
         return
     end
 
+    -- Update compass/distance while moving, not just after quest changes.
+    if Navigation and Navigation.Guidance and state.navigationTarget then
+        local guidance = Navigation:Guidance(state.navigationTarget)
+        if guidance and (pickup or guidance.straightYards)
+            and frame.distance:GetText() ~= guidance.label then
+            frame.distance:SetText(guidance.label)
+            UpdateTitleLayout()
+        end
+    end
+
     local dx = targetX - playerX
     local dy = targetY - playerY
     if (dx * dx + dy * dy) < 0.000001 then
@@ -1704,6 +1715,16 @@ SlashCmdList.FOREVERQUEST = function(message)
         if Planner then Planner:Invalidate() end
         RefreshFocus()
         Print("Restored skipped possible quest pickups for this character.")
+    elseif command == "pin auto" then
+        ForeverQuestDB.autoWaypoint = true
+        RefreshFocus()
+        Print("Automatic map waypoints enabled; personal pins remain protected.")
+    elseif command == "pin manual" then
+        ForeverQuestDB.autoWaypoint = false
+        if Navigation and Navigation.ClearOwnPin then
+            Navigation:ClearOwnPin()
+        end
+        Print("Automatic map waypoints disabled; Shift-click still marks a destination.")
     elseif command == "navigate" then
         NavigateToFocus()
     elseif command == "report" then
@@ -1720,7 +1741,7 @@ SlashCmdList.FOREVERQUEST = function(message)
         frame:SetPoint(defaults.point, UIParent, defaults.relativePoint, defaults.x, defaults.y)
         Print("position reset")
     else
-        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq why, /fq mode fast|balanced|complete, /fq avoid, /fq unavoid, /fq zones, /fq plan, /fq skip, /fq unskip, /fq here, /fq knowledge, /fq report, /fq data, /fq navigate, /fq debug, /fq reset")
+        Print("/fq unlock, /fq lock, /fq auto, /fq pin auto, /fq pin manual, /fq route, /fq why, /fq mode fast|balanced|complete, /fq avoid, /fq unavoid, /fq zones, /fq plan, /fq skip, /fq unskip, /fq here, /fq knowledge, /fq report, /fq data, /fq navigate, /fq debug, /fq reset")
     end
 end
 
