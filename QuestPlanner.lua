@@ -94,7 +94,12 @@ local function prereqs(q, id, active)
         if not pass then return false end
     end
     local parent = get(q, id, "parentQuest")
-    if type(parent) == "number" and parent > 0 and not active[parent] then
+    -- A parent quest being merely accepted does not unlock its follow-up.
+    -- Require a recorded completion before advertising the child pickup.
+    -- If completion status is unavailable, fail closed rather than send
+    -- the player to a quest giver who cannot offer the next step yet.
+    if type(parent) == "number" and parent > 0
+        and completed(parent) ~= true then
         return false
     end
     local chain = get(q, id, "availableStartingWith")
