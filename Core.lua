@@ -828,11 +828,25 @@ local function RouteSelection(plan)
     local proposed = plan and plan.stops and plan.stops[1]
     if not proposed then return nil end
     local current = state.routeStop
-    if current and state.routeKey and GetTime
-        and GetTime() - state.lastRouteSwitch < 9 then
+    local inCombat = false
+    if UnitAffectingCombat then
+        local ok, combat = pcall(UnitAffectingCombat, "player")
+        inCombat = ok and combat == true
+    end
+    if current and (inCombat or (state.routeKey and GetTime
+        and GetTime() - state.lastRouteSwitch < 9)) then
         for _, stop in ipairs(plan.stops) do
             if stop.kind == current.kind and stop.questID == current.questID then
                 return stop
+            end
+        end
+    end
+    -- Never interrupt active combat with an unsolicited new quest pickup.
+    if inCombat and proposed.kind == "pickup" then
+        for _, stop in ipairs(plan.stops) do
+            if stop.kind == "objective" then
+                proposed = stop
+                break
             end
         end
     end
