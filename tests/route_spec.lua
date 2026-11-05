@@ -89,7 +89,7 @@ ForeverQuestCatalog.Quest.GetAllIds = function() return {101,102,103,104,105,106
 
 dofile("QuestPlanner.lua")
 local planner=_G.ForeverQuestPlanner
-assert(planner:Available(), "QuestieDB provider")
+assert(planner:Available(), "bundled quest catalog provider")
 planner:Scan(1411, playerLevel, {})
 local candidates=planner:GetNearby(1411,10)
 equal(#candidates,2,"eligible new quests")
@@ -117,4 +117,17 @@ finished[106]=true
 planner:Invalidate()
 planner:Scan(1411,playerLevel,{})
 equal(#planner:GetNearby(1411,10),1,"completed quest suppressed")
-print("ForeverQuest offline route + QuestieDB adapter tests passed")
+
+-- Adjacent-zone lookahead: available quests in Barrens are relevant to a
+-- Durotar character, but not a promise that travel is immediately ideal.
+UnitFactionGroup = function() return "Horde" end
+local zones = planner:GetNextZones(1411, playerLevel, {}, 3)
+equal(zones[1].mapID,1413,"Durotar -> Barrens lookahead")
+assert(zones[1].possibleQuests >= 1,"Barrens quest candidate count")
+
+-- Do not send Horde characters to explicitly Alliance-only NPCs.
+npcRows[14].friendlyToFaction = "A"
+planner:Invalidate()
+zones = planner:GetNextZones(1411, playerLevel, {}, 3)
+equal(#zones,0,"opposite-faction questgiver excluded")
+print("ForeverQuest offline route + bundled catalog adapter tests passed")
