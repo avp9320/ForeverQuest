@@ -563,8 +563,22 @@ end
 
 local function PickAutoQuest()
     local best
+    local strategy = _G.ForeverQuestStrategy
+    local opts = {
+        level = UnitLevel and UnitLevel("player") or 1,
+        groupSize = math.max(1, (GetNumGroupMembers and GetNumGroupMembers()) or 1),
+        avoided = AvoidedQuests(),
+    }
     for _, candidate in ipairs(state.quests) do
-        if not AvoidedQuests()[candidate.questID] then
+        local eligible = not strategy or not strategy.IsAutoEligible
+            or strategy:IsAutoEligible({
+                questID = candidate.questID,
+                kind = candidate.complete and "turnin" or "objective",
+                questLevel = candidate.questLevel,
+                isElite = candidate.isElite,
+                suggestedGroup = candidate.suggestedGroup,
+            }, opts)
+        if eligible then
             best = candidate
             break
         end
@@ -575,7 +589,15 @@ local function PickAutoQuest()
 
     local current = FindQuest(state.focusQuestID)
     if current and not AvoidedQuests()[current.questID]
-        and ForeverQuestDB.mode == "AUTO" then
+        and ForeverQuestDB.mode == "AUTO"
+        and (not strategy or not strategy.IsAutoEligible
+            or strategy:IsAutoEligible({
+                questID = current.questID,
+                kind = current.complete and "turnin" or "objective",
+                questLevel = current.questLevel,
+                suggestedGroup = current.suggestedGroup,
+                isElite = current.isElite,
+            }, opts)) then
         -- A quest becoming ready for turn-in must immediately yield to a
         -- nearby unfinished quest, even if the old quest is very close.
         -- Do not let the anti-thrashing rule preserve the completed quest.
@@ -1167,7 +1189,9 @@ RefreshFocus = function()
         end
     end
 
-    if not quest and not manualPickup then quest = PickAutoQuest() end
+    if ForeverQuestDB.mode == "AUTO" then
+        quest = PickAutoQuest()
+    end
 
     state.pickup = manualPickup
     if ForeverQuestDB.mode == "AUTO" then
