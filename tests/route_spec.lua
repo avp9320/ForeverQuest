@@ -135,6 +135,33 @@ local grouping=route:Build({
 equal(grouping.stops[1].questID,511,
     "multi-quest area beats slightly closer isolated stop")
 
+-- AUTO must never send a level 7 character to a level 10 quest,
+-- even if it is next door or was previously the committed route stop.
+dofile("Strategy.lua")
+local safeOpts={level=7,groupSize=1}
+local unsafe={questID=720,title="Too high",complete=false,
+    waypointMap=1411,waypointX=.401,waypointY=.600,questLevel=10}
+local safe={questID=721,title="Level appropriate",complete=false,
+    waypointMap=1411,waypointX=.48,waypointY=.60,questLevel=7}
+local highRoute=route:Build({unsafe,safe},{},1411,.4,.6,safeOpts)
+equal(#highRoute.stops,1,"above-level objective omitted")
+equal(highRoute.stops[1].questID,721,"safe quest wins regardless of distance")
+local pinnedHigh=route:Build({unsafe,safe},{},1411,.4,.6,
+    {level=7,groupSize=1,preferredKey="objective:720:main"})
+equal(pinnedHigh.stops[1].questID,721,"unsafe committed stop is dropped")
+local soloElite={questID=722,title="Elite",complete=false,
+    waypointMap=1411,waypointX=.402,waypointY=.60,
+    questLevel=7,isElite=true}
+local soloRoute=route:Build({soloElite,safe},{},1411,.4,.6,safeOpts)
+equal(#soloRoute.stops,1,"solo elite is not recommended")
+local ready={questID=723,title="Turn in old quest",complete=true,
+    waypointMap=1411,waypointX=.401,waypointY=.601,questLevel=10}
+local turnRoute=route:Build({unsafe,ready},{},1411,.4,.6,safeOpts)
+equal(#turnRoute.stops,1,"finished overlevel quest still allows turn in")
+equal(turnRoute.stops[1].kind,"turnin","completed quest is safe to turn in")
+local allUnsafe=route:Build({unsafe,soloElite},{},1411,.4,.6,safeOpts)
+equal(#allUnsafe.stops,0,"no unsafe fallback when there are no safe quests")
+
 local playerLevel = 8
 local finished = {[105]=true}
 UnitRace = function() return "Orc","Orc",2 end
