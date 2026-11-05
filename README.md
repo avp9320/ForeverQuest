@@ -7,6 +7,14 @@ overlap, when to turn in, and where to quest afterward. It keeps the interface
 small: one two-line objective card, with optional hover details and a secure
 quest-item button. Nothing is continuously posted to chat.
 
+## v1.0.5 — level-safe automatic routing
+
+- AUTO never recommends accepted objectives or tentative quest pickups whose known quest level exceeds the player's current level. Quest-log level is preferred to catalog level when available.
+- Solo elite/group objectives are excluded from AUTO. Manual choices remain available.
+- Completed turn-ins remain eligible regardless of quest level.
+- Unsafe quests are removed before distance, overlap and route-commitment scoring, and the fallback selector cannot silently select one.
+- Regression tests cover above-level quests, locked objectives, solo elites, turn-ins and empty safe routes.
+
 ## v1.0.4 — Blizzard quest objective tracking, no map pins
 
 - ForeverQuest no longer creates, replaces, or clears user map waypoints, either automatically or by Shift-click.
