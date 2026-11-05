@@ -260,6 +260,11 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
     -- enough: the planner could walk away from a second nearby quest giver.
     -- Never chase distant speculative pickups while active work remains.
     local collectingHub = false
+    -- An empty quest log should trigger one hub collection trip, not a
+    -- five-stop sightseeing tour of unrelated quest givers across the map.
+    -- After reaching that hub, accepting quests causes a fresh live plan.
+    local emptyLogPickupTrip = activeCount == 0
+    local firstPickupX, firstPickupY
     local function phaseForStep(step)
         local hasObjective, hasTurnin, localPickup = false, false, false
         for _, candidate in ipairs(all) do
@@ -289,10 +294,28 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
         return "pickup"
     end
     for step = 1, math.min(5, #all) do
+        -- Keep an empty-log itinerary inside the first selected hub. This
+        -- prevents the route from promising five distant pickups before the
+        -- player has even accepted the first quest.
+        if emptyLogPickupTrip and firstPickupX then
+            local nearby = false
+            for _, candidate in ipairs(all) do
+                if not used[candidate.key] and candidate.kind == "pickup"
+                    and distance(candidate.x, candidate.y,
+                        firstPickupX, firstPickupY) <= 0.035 then
+                    nearby = true
+                    break
+                end
+            end
+            if not nearby then break end
+        end
         local phase = phaseForStep(step)
         local best, bestScore, bestDist, bestCluster
         for _, candidate in ipairs(all) do
-            if not used[candidate.key] and candidate.kind == phase then
+            if not used[candidate.key] and candidate.kind == phase
+                and (not emptyLogPickupTrip or not firstPickupX
+                    or distance(candidate.x, candidate.y,
+                        firstPickupX, firstPickupY) <= 0.035) then
                 local score, dist, clustered = routeScore(candidate, x, y, all, used, options)
                 if step == 1 and candidate == pinned then
                     score = score + 100
@@ -307,6 +330,9 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
         end
         if not best then break end
         used[best.key] = true
+        if emptyLogPickupTrip and not firstPickupX and best.kind == "pickup" then
+            firstPickupX, firstPickupY = best.x, best.y
+        end
         local stop = {}
         for k, v in pairs(best) do stop[k] = v end
         stop.distance = bestDist
