@@ -368,6 +368,26 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
         end
         if collectingHub and localPickup then return "pickup" end
         collectingHub = false
+        -- Bank a completed quest when its giver is right here and the
+        -- remaining objectives require a separate trip. This can unlock
+        -- follow-ups on the next live quest-log refresh. Do not detour
+        -- from a dense objective cluster merely to chase a remote turn-in.
+        if step == 1 and hasTurnin and not localPickup then
+            local nearestTurnin, nearestObjective = math.huge, math.huge
+            for _, candidate in ipairs(all) do
+                if not used[candidate.key] then
+                    local d = distance(x, y, candidate.x, candidate.y)
+                    if candidate.kind == "turnin" then
+                        nearestTurnin = math.min(nearestTurnin, d)
+                    elseif candidate.kind == "objective" then
+                        nearestObjective = math.min(nearestObjective, d)
+                    end
+                end
+            end
+            if nearestTurnin <= 0.025 and nearestObjective > 0.07 then
+                return "turnin"
+            end
+        end
         if hasObjective and hasPickupNearObjective() then
             return "pickup"
         end
