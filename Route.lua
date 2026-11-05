@@ -37,6 +37,7 @@ local function append(all, seen, kind, id, name, mapID, x, y,
         giverName = kind == "pickup" and goal and goal.giverName or nil,
         suggestedGroup = goal and goal.suggestedGroup or nil,
         isElite = goal and goal.isElite or nil,
+        questLevel = goal and goal.questLevel or nil,
     }
     seen[key] = true
     all[#all + 1] = stop
@@ -152,6 +153,7 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
             for _, goal in ipairs(goals) do
                 goal.suggestedGroup = q.suggestedGroup
                 goal.isElite = q.isElite
+                goal.questLevel = q.questLevel
                 append(all, seen, "objective", q.questID, q.title,
                     goal.mapID, goal.x, goal.y,
                     goal.confidence or "provisional", goal.entityName, goal)
@@ -189,6 +191,18 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
         end
     end
 
+    -- Unsafe objectives cannot win simply because they are the closest.
+    -- Filter before grouping and scoring so they also grant no cluster bonus.
+    local strategy = _G.ForeverQuestStrategy
+    if strategy and strategy.IsAutoEligible and not options.includeUnsafe then
+        local filtered = {mapID = mapID}
+        for _, stop in ipairs(all) do
+            if strategy:IsAutoEligible(stop, options) then
+                filtered[#filtered + 1] = stop
+            end
+        end
+        all = filtered
+    end
     plan.totalCandidates = #all
     all = groupPickupHubs(all)
     plan.totalLocations = #all
