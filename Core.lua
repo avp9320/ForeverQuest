@@ -1244,7 +1244,7 @@ RefreshFocus = function()
         else
             frame.objective:SetText(destination
                 and ("Find " .. destination)
-                or "Find quest starter (map pin shows location)")
+                or "Find quest starter (estimated location)")
         end
         local guidance = Navigation and Navigation.Guidance
             and Navigation:Guidance(state.navigationTarget)
