@@ -84,6 +84,8 @@ local questRows = {
     -- Active-only fixture: several different goals for the SAME quest.
     [108] = {name="Mixed objective",finishedBy={{12}},
         objectives={{{21,2},{22,4}},{{81,1}},{{801,3}}}},
+    [109] = {name="Explore the cave",
+        triggerPoints={[14]={{52.5,73.5}}}},
 }
 local npcRows = {
     [11] = {name="Starter",spawns={[14]={{40.5,60.3}}}},
@@ -151,6 +153,17 @@ local doneItem=planner:GetActivePositions(108,false,1411,
 equal(#doneItem,3,"completed item goal is excluded")
 local turnTargets=planner:GetActivePositions(108,true,1411,nil,6)
 equal(#turnTargets,1,"one alternative turn-in stop")
+
+local exploration=planner:GetActivePositions(109,false,1411,nil,6)
+equal(#exploration,1,"exploration-only quest is locatable")
+equal(exploration[1].goalKey,"trigger","spatial exploration goal")
+equal(exploration[1].x,.525,"exploration map coordinate")
+local premature=planner:GetActivePositions(109,false,1411,
+    {{text="0/8 enemies slain",finished=false}},6)
+equal(#premature,0,"do not send to exploration trigger before other objectives")
+local readyTrigger=planner:GetActivePositions(109,false,1411,
+    {{text="8/8 enemies slain",finished=true}},6)
+equal(#readyTrigger,1,"visit completion trigger after other objectives")
 
 local multi=route:Build({
     {questID=108,title="Mixed objective",complete=false,
