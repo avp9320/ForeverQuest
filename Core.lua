@@ -1,7 +1,8 @@
 local ADDON_NAME = ...
 
 local FQ = CreateFrame("Frame")
-local VERSION = "0.2.1"
+local Planner = _G.ForeverQuestPlanner
+local VERSION = "0.3.0"
 
 local defaults = {
     locked = true,
@@ -16,6 +17,7 @@ local defaults = {
 local state = {
     quests = {},
     focusQuestID = nil,
+    pickup = nil,
     focusScore = nil,
     lastFocusChange = 0,
     refreshElapsed = 0,
@@ -377,6 +379,32 @@ local function PrintArea()
 end
 
 local function NavigateToFocus()
+    if state.pickup then
+        local item = state.pickup
+        if C_Map and type(C_Map.SetUserWaypoint) == "function"
+            and UiMapPoint and type(UiMapPoint.CreateFromCoordinates) == "function" then
+            local ok, allowed = true, true
+            if C_Map.CanSetUserWaypointOnMap then
+                ok, allowed = pcall(C_Map.CanSetUserWaypointOnMap, item.mapID)
+            end
+            if ok and allowed then
+                local setOK, setResult = pcall(function()
+                    local point = UiMapPoint.CreateFromCoordinates(item.mapID, item.x, item.y)
+                    return C_Map.SetUserWaypoint(point)
+                end)
+                if setOK and setResult ~= false then
+                    if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
+                        pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
+                    end
+                    Print(string.format("Possible pickup: %s, ~%.1f, %.1f (provisional).",
+                        item.name, item.x * 100, item.y * 100))
+                    return
+                end
+            end
+        end
+        Print("The client did not allow placing this suggested pickup waypoint.")
+        return
+    end
     local quest = FindQuest(state.focusQuestID)
     if not quest then Print("No focused quest."); return end
 
@@ -418,6 +446,39 @@ local function NavigateToFocus()
         end
     end
     Print("No client-supported waypoint is available for this quest.")
+end
+
+local function RefreshFutureQuests()
+    if not Planner or not Planner.Available or not Planner:Available() then return end
+    local active = {}
+    for _, quest in ipairs(state.quests) do active[quest.questID] = true end
+    Planner:Scan(GetBestMap(), UnitLevel("player"), active)
+end
+
+local function NearbyPickup()
+    if not Planner or not Planner.Available or not Planner:Available() then return nil end
+    return Planner:GetNearby(GetBestMap(), 1)[1]
+end
+
+local function PrintPlan()
+    CollectQuests()
+    if not Planner or not Planner:Available() then
+        Print("Future quest discovery needs QuestieDB-Forever (data-only addon).")
+        Print("Live quest tracking and starter locations still work without it.")
+        return
+    end
+    RefreshFutureQuests()
+    Print(Planner:Status())
+    local candidates = Planner:GetNearby(GetBestMap(), 5)
+    if #candidates == 0 then
+        Print("No pickup suggestions yet, or the zone scan is still running.")
+        return
+    end
+    Print("Possible quest pickups (not confirmed by the live NPC):")
+    for i, q in ipairs(candidates) do
+        Print(string.format("%d. %s: ~%.1f, %.1f (%s)",
+            i, q.name, q.x * 100, q.y * 100, q.kind))
+    end
 end
 
 local function PickAutoQuest()
@@ -568,7 +629,7 @@ local function ManualCycle(direction)
     end
 
     ForeverQuestDB.mode = "MANUAL"
-    local currentIndex = 1
+    local currentIndex = state.pickup and 0 or 1
     for index, quest in ipairs(state.quests) do
         if quest.questID == state.focusQuestID then
             currentIndex = index
@@ -616,6 +677,13 @@ frame:SetScript("OnEnter", function(self)
     GameTooltip:AddLine("Left click / mouse wheel: cycle quests", 0.8, 0.8, 0.8)
     GameTooltip:AddLine("Right click: return to AUTO", 0.8, 0.8, 0.8)
     GameTooltip:AddLine("Shift-left click: navigate using Blizzard's quest tracking", 0.8, 0.8, 0.8)
+    if state.pickup then
+        GameTooltip:AddLine("Possible new quest: " .. state.pickup.name, 0.45, 0.95, 0.56, true)
+        GameTooltip:AddLine(string.format("Quest giver ~%.1f, %.1f (%s)",
+            state.pickup.x * 100, state.pickup.y * 100, state.pickup.kind), 0.85, 0.85, 0.85)
+        GameTooltip:AddLine("Classic/Forever database prediction; offer not confirmed.",
+            0.75, 0.69, 0.45, true)
+    end
     local quest = FindQuest(state.focusQuestID)
     if quest then
         if quest.waypointText then
@@ -650,6 +718,7 @@ end)
 
 local function RefreshFocus()
     CollectQuests()
+    RefreshFutureQuests()
 
     local quest
     if ForeverQuestDB.mode == "MANUAL" then
@@ -664,7 +733,32 @@ local function RefreshFocus()
         quest = PickAutoQuest()
     end
 
-    SetFocus(quest)
+    -- A nearby unaccepted quest is often worth grabbing on the way, but
+    -- don't interrupt an active objective or nearby completed turn-in.
+    state.pickup = nil
+    if ForeverQuestDB.mode == "AUTO" then
+        local candidate = NearbyPickup()
+        local questNear = quest and quest.mapDistance and quest.mapDistance <= 0.04
+        if candidate and (not quest or
+            (candidate.distance <= 0.018 and not questNear
+            and (not quest.mapDistance or quest.mapDistance > 0.07))) then
+            state.pickup = candidate
+        end
+    end
+
+    SetFocus(state.pickup and nil or quest)
+
+    if state.pickup then
+        local pickup = state.pickup
+        frame.title:SetText("Pick up: " .. pickup.name)
+        frame.title:SetTextColor(0.48, 0.95, 0.57)
+        frame.objective:SetText("Possible new quest (" .. pickup.kind .. ")")
+        frame.distance:SetText(string.format("~%.0f,%.0f",
+            pickup.x * 100, pickup.y * 100))
+        frame.group:Hide()
+        UpdateTitleLayout()
+        return
+    end
 
     if not quest then
         frame.title:SetText("No active quests")
@@ -704,13 +798,16 @@ end
 local function UpdateArrow()
     local questID = state.focusQuestID
     local quest = FindQuest(questID)
-    local mapID = quest and quest.waypointMap or GetBestMap()
-    if not questID or not mapID or not (C_Map and C_Map.GetPlayerMapPosition) then
+    local pickup = state.pickup
+    local mapID = (pickup and pickup.mapID) or (quest and quest.waypointMap) or GetBestMap()
+    if (not questID and not pickup) or not mapID
+        or not (C_Map and C_Map.GetPlayerMapPosition) then
         ShowDirectionArrow(false)
         return
     end
 
-    local targetX, targetY = quest and quest.waypointX, quest and quest.waypointY
+    local targetX = pickup and pickup.x or (quest and quest.waypointX)
+    local targetY = pickup and pickup.y or (quest and quest.waypointY)
     if not targetX or not targetY then
         local waypointMap
         waypointMap, targetX, targetY = GetWaypoint(questID, mapID)
@@ -776,6 +873,7 @@ end)
 local function DebugDump()
     Print("version " .. VERSION .. ", mode " .. tostring(ForeverQuestDB.mode))
     Print("mapID " .. tostring(GetBestMap()) .. ", quests " .. tostring(#state.quests) .. ", focus " .. tostring(state.focusQuestID))
+    if Planner then Print(Planner:Status()) end
     local quest = FindQuest(state.focusQuestID)
     if quest then
         local mapID, x, y = GetWaypoint(quest.questID, GetBestMap())
@@ -805,6 +903,10 @@ SlashCmdList.FOREVERQUEST = function(message)
     elseif command == "area" then
         CollectQuests()
         PrintArea()
+    elseif command == "plan" or command == "pickups" then
+        PrintPlan()
+    elseif command == "data" then
+        Print(Planner and Planner:Status() or "Quest data provider unavailable.")
     elseif command == "navigate" then
         NavigateToFocus()
     elseif command == "debug" then
@@ -819,11 +921,12 @@ SlashCmdList.FOREVERQUEST = function(message)
         frame:SetPoint(defaults.point, UIParent, defaults.relativePoint, defaults.x, defaults.y)
         Print("position reset")
     else
-        Print("/fq unlock, /fq lock, /fq auto, /fq area, /fq navigate, /fq debug, /fq reset")
+        Print("/fq unlock, /fq lock, /fq auto, /fq plan, /fq data, /fq area, /fq navigate, /fq debug, /fq reset")
     end
 end
 
 FQ:RegisterEvent("PLAYER_LOGIN")
+FQ:RegisterEvent("PLAYER_LEVEL_UP")
 FQ:RegisterEvent("PLAYER_ENTERING_WORLD")
 FQ:RegisterEvent("QUEST_LOG_UPDATE")
 FQ:RegisterEvent("QUEST_ACCEPTED")
@@ -843,6 +946,10 @@ FQ:SetScript("OnEvent", function(_, event)
         Print("v" .. VERSION .. " loaded. /fq for commands.")
     else
         if ForeverQuestDB then
+            if Planner and (
+                event == "QUEST_ACCEPTED" or event == "QUEST_REMOVED" or
+                event == "QUEST_TURNED_IN" or event == "PLAYER_LEVEL_UP"
+            ) then Planner:Invalidate() end
             RefreshFocus()
         end
     end
