@@ -809,6 +809,17 @@ frame:SetScript("OnEnter", function(self)
         GameTooltip:AddLine("Not a travel route; verify quest availability.",
             0.63, 0.63, 0.63, true)
     end
+    if state.routeStop and state.routeStop.kind == "objective"
+        and state.routeStop.stepLabel then
+        GameTooltip:AddLine("Selected objective: " .. state.routeStop.stepLabel,
+            0.65, 0.94, 0.70, true)
+        local active = FindQuest(state.routeStop.questID)
+        if active then
+            GameTooltip:AddLine("Quest progress: "
+                .. ObjectiveText(active.questID, active.complete),
+                0.75, 0.75, 0.75, true)
+        end
+    end
     if state.routePlan and state.routePlan.stops and #state.routePlan.stops > 0
         and Route and Route.Describe then
         GameTooltip:AddLine("Suggested next stops (approx. map locations):", 0.53, 0.83, 1.0)
@@ -1062,7 +1073,27 @@ RefreshFocus = function()
 
     frame.title:SetText(quest.title)
     local objectiveText = ObjectiveText(quest.questID, quest.complete)
-    if objectiveText == "Quest in progress" and quest.waypointText then
+    local selectedGoal = state.routeStop
+    if selectedGoal and selectedGoal.kind == "objective"
+        and selectedGoal.questID == quest.questID
+        and selectedGoal.goalKey ~= "main" and selectedGoal.targetName then
+        -- The chosen destination should determine which objective text is
+        -- shown. Previously the card always displayed the FIRST unfinished
+        -- objective, even while routing to another one.
+        local target = selectedGoal.targetName:lower()
+        local matched = nil
+        for _, obj in ipairs(GetObjectives(quest.questID) or {}) do
+            local text = type(obj) == "table" and (obj.text or obj.description)
+            local completed = type(obj) == "table"
+                and (obj.finished == true or obj.isFinished == true)
+            if type(text) == "string" and text:lower():find(target, 1, true)
+                and not completed then
+                matched = text
+                break
+            end
+        end
+        objectiveText = matched or selectedGoal.stepLabel or objectiveText
+    elseif objectiveText == "Quest in progress" and quest.waypointText then
         objectiveText = quest.waypointText
     end
     frame.objective:SetText(objectiveText)
