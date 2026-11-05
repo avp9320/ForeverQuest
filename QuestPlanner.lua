@@ -112,6 +112,17 @@ local function prereqs(q, id, active)
         and (active[nextQuest] or completed(nextQuest) == true) then
         return false
     end
+    local breadcrumbTarget = get(q,id,"breadcrumbForQuestId")
+    if type(breadcrumbTarget)=="number" and breadcrumbTarget>0
+        and (active[breadcrumbTarget] or completed(breadcrumbTarget)==true) then
+        return false
+    end
+    local breadcrumbs = get(q,id,"breadcrumbs")
+    if type(breadcrumbs)=="table" then
+        for _,before in ipairs(breadcrumbs) do
+            if active[before] then return false end
+        end
+    end
     local exclusives = get(q, id, "exclusiveTo")
     if type(exclusives) == "table" then
         for _, other in ipairs(exclusives) do
