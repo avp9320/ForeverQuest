@@ -4,9 +4,10 @@
 ## Author: avp9320
 ## Version: 0.4.1
 ## SavedVariables: ForeverQuestDB
-## OptionalDeps: QuestieDB
 
 QuestData.lua
+CatalogData.lua
+CatalogRuntime.lua
 QuestPlanner.lua
 Route.lua
 Core.lua
