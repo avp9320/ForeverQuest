@@ -678,8 +678,12 @@ local function ManualCycle(direction)
         local questID = ForeverQuestDB.mode == "MANUAL"
             and ForeverQuestDB.manualQuestID
             or (state.routeStop and state.routeStop.questID)
+        local goalKey = ForeverQuestDB.mode == "MANUAL"
+            and ForeverQuestDB.manualGoalKey
+            or (state.routeStop and state.routeStop.goalKey)
         for i, stop in ipairs(stops) do
-            if stop.kind == kind and stop.questID == questID then
+            if stop.kind == kind and stop.questID == questID
+                and (not goalKey or stop.goalKey == goalKey) then
                 index = i
                 break
             end
@@ -691,6 +695,7 @@ local function ManualCycle(direction)
         ForeverQuestDB.mode = "MANUAL"
         ForeverQuestDB.manualKind = selected.kind
         ForeverQuestDB.manualQuestID = selected.questID
+        ForeverQuestDB.manualGoalKey = selected.goalKey
         state.manualChoice = selected
         if RefreshFocus then RefreshFocus() end
         return
@@ -699,6 +704,7 @@ local function ManualCycle(direction)
     if #state.quests == 0 then return end
     ForeverQuestDB.mode = "MANUAL"
     ForeverQuestDB.manualKind = nil
+    ForeverQuestDB.manualGoalKey = nil
     local currentIndex = 1
     for i, quest in ipairs(state.quests) do
         if quest.questID == state.focusQuestID then currentIndex = i; break end
@@ -722,7 +728,10 @@ frame:SetScript("OnClick", function(_, button)
         ForeverQuestDB.mode = "AUTO"
         ForeverQuestDB.manualQuestID = nil
         ForeverQuestDB.manualKind = nil
+        ForeverQuestDB.manualGoalKey = nil
         state.manualChoice = nil
+        state.routeStop = nil
+        state.routeKey = nil
         if RefreshFocus then RefreshFocus() end
         Print("AUTO mode")
     elseif button == "LeftButton" then
@@ -851,7 +860,7 @@ local function RouteSelection(plan)
     if current and (inCombat or (state.routeKey and GetTime
         and GetTime() - state.lastRouteSwitch < 9)) then
         for _, stop in ipairs(plan.stops) do
-            if stop.kind == current.kind and stop.questID == current.questID then
+            if stop.key == current.key then
                 return stop
             end
         end
@@ -865,7 +874,7 @@ local function RouteSelection(plan)
             end
         end
     end
-    local key = proposed.kind .. ":" .. tostring(proposed.questID)
+    local key = proposed.key
     if key ~= state.routeKey then
         state.routeKey = key
         state.lastRouteSwitch = GetTime and GetTime() or 0
