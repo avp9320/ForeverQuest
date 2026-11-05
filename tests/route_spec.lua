@@ -268,8 +268,16 @@ local pinnedTurn=route:Build({
     {questID=702,title="Report back",complete=true,
         waypointMap=1411,waypointX=.402,waypointY=.601},
 }, {},1411,.4,.6,{preferredKey="turnin:702:main"})
-equal(pinnedTurn.stops[1].kind,"objective",
-    "old pinned turn-in cannot override circuit phase")
+equal(pinnedTurn.stops[1].kind,"turnin",
+    "nearby ready turn-in may be banked before a distant objective")
+local pinnedLocalTurn=route:Build({
+    {questID=701,title="Clear the camp",complete=false,
+        waypointMap=1411,waypointX=.420,waypointY=.610},
+    {questID=702,title="Report back",complete=true,
+        waypointMap=1411,waypointX=.402,waypointY=.601},
+}, {},1411,.4,.6,{preferredKey="turnin:702:main"})
+equal(pinnedLocalTurn.stops[1].kind,"objective",
+    "old pinned turn-in cannot override a local objective circuit")
 
 -- AUTO must never send a level 7 character to a level 10 quest,
 -- even if it is next door or was previously the committed route stop.
