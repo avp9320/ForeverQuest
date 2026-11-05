@@ -151,6 +151,16 @@ local function eligible(lib, id, level, active, raceBit, classBit)
     if type(max) == "number" and max > 0 and level > max then return false end
     local questLevel = get(q, id, "questLevel")
     if type(questLevel) == "number" and questLevel > level then return false end
+    -- Discovery and zone lookahead must obey the same solo-safety rules as
+    -- the live route. Otherwise a hub can look productive solely because
+    -- of elite/group quests that AUTO will immediately reject.
+    local partySize = math.max(1, tonumber(GetNumGroupMembers
+        and GetNumGroupMembers()) or 1)
+    local suggestedGroup = tonumber(get(q, id, "suggestedGroup")) or 0
+    local elite = get(q, id, "isElite") == true
+    if partySize == 1 and (suggestedGroup > 1 or elite) then
+        return false
+    end
     if not allowed(get(q, id, "requiredRaces"), raceBit) then return false end
     if not allowed(get(q, id, "requiredClasses"), classBit) then return false end
     -- Don't recommend quests with gates we cannot verify from character state.
