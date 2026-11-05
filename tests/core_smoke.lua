@@ -89,4 +89,14 @@ assert(ForeverQuestDB.ignoredByCharacter["Player-test-1"][201],
 SlashCmdList.FOREVERQUEST("unskip")
 assert(not ForeverQuestDB.ignoredByCharacter["Player-test-1"][201],
     "skip can be restored")
+-- No quest-log objectives or nearby starters: suggest a plausible
+-- neighboring questing zone, without inventing a travel waypoint.
+p.GetNearby = function() return {} end
+p.GetNextZones = function()
+    return {{mapID=1413,name="The Barrens",possibleQuests=5}}
+end
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+assert(string.find(card.title:GetText(),"The Barrens",1,true),
+    "neighboring-zone hint should replace an empty quest tracker")
+SlashCmdList.FOREVERQUEST("zones")
 print("ForeverQuest Core mock game/UI smoke test passed")
