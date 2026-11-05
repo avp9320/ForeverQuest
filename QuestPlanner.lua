@@ -197,6 +197,7 @@ local function starter(lib, id, mapID, maps, playerX, playerY)
                                             questID = id, mapID = mapID,
                                             x = normalizedX, y = normalizedY,
                                             giverID = npcID, kind = entry.kind,
+                                            giverName = get(entry.db, npcID, "name"),
                                             confidence = "provisional",
                                         }
                                     end
@@ -207,6 +208,24 @@ local function starter(lib, id, mapID, maps, playerX, playerY)
                 end
             end
         end
+    end
+    -- A documented Forever location wins over an inherited Classic spawn.
+    -- Keep the NPC's ID/name for grouping and show an actual destination
+    -- rather than forcing the player to decode 50,40.
+    local curated = _G.ForeverQuestData and _G.ForeverQuestData[id]
+    local point = curated and curated.pickup
+    if curated and curated.mapID == mapID and type(point) == "table"
+        and type(point.x) == "number" and type(point.y) == "number"
+        and point.x >= 0 and point.x <= 1
+        and point.y >= 0 and point.y <= 1 then
+        best = {
+            questID = id, mapID = mapID, x = point.x, y = point.y,
+            giverID = point.npcID or (best and best.giverID),
+            giverName = point.npc or (best and best.giverName),
+            area = point.area,
+            kind = best and best.kind or "NPC",
+            confidence = curated.confidence or "provisional",
+        }
     end
     return best
 end
