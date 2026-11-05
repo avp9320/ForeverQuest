@@ -97,6 +97,12 @@ equal(candidates[1].questID,101,"nearest eligible pickup")
 assert(string.find(planner:Status(),"2 possible",1,true))
 local objective=planner:GetActivePosition(101,false,1411)
 equal(objective.entityID,21,"active NPC objective")
+local finishedOnly=planner:GetActivePosition(101,false,1411,
+    {{text="3/3 Scorpid slain", finished=true}})
+equal(finishedOnly,nil,"avoid finished NPC target")
+local unfinishedObjective=planner:GetActivePosition(101,false,1411,
+    {{text="0/3 Scorpid slain", finished=false}})
+equal(unfinishedObjective.entityID,21,"retain unfinished NPC target")
 local turn=planner:GetActivePosition(101,true,1411)
 equal(turn.entityID,12,"turn-in NPC")
 local drop=planner:GetActivePosition(106,false,1411)
