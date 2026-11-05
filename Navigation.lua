@@ -1,11 +1,8 @@
--- ForeverQuest compact navigation: readable bearing / straight-line yardage
--- and respectful use of Blizzard's user waypoint.
--- No terrain routes or client-only claimed precision. Never replaces a
--- player's own map pin in AUTO. Shift-click is explicit manual navigation.
+-- ForeverQuest navigation: in-game directional guidance and Blizzard's
+-- official quest supertracking. Never creates or modifies user map pins.
 local Nav = {}
 _G.ForeverQuestNavigation = Nav
 
-local ownedWaypoint
 local function valid(mapID, x, y)
     return type(mapID) == "number" and mapID > 0
         and type(x) == "number" and x >= 0 and x <= 1
@@ -25,22 +22,6 @@ local function xy(point)
             return x, y
         end
     end
-end
-
-local function matching(pin, target)
-    if not pin or not target or pin.uiMapID ~= target.mapID then return false end
-    local x, y = xy(pin)
-    return x and math.abs(x - target.x) < 0.00035
-        and math.abs(y - target.y) < 0.00035
-end
-
-local function currentWaypoint()
-    if not (C_Map and type(C_Map.GetUserWaypoint) == "function") then
-        return false, nil
-    end
-    local ok, point = pcall(C_Map.GetUserWaypoint)
-    if not ok then return false, nil end
-    return true, point
 end
 
 function Nav:Destination(questID, kind, fallback)
@@ -113,68 +94,18 @@ function Nav:Guidance(target)
         mapID = target.mapID, x = target.x, y = target.y}
 end
 
-local function canPlace(target)
-    if not valid(target.mapID, target.x, target.y)
-        or not (C_Map and type(C_Map.SetUserWaypoint) == "function")
-        or not (UiMapPoint and type(UiMapPoint.CreateFromCoordinates) == "function")
-        then return false end
-    if C_Map.CanSetUserWaypointOnMap then
-        local ok, allowed = pcall(C_Map.CanSetUserWaypointOnMap, target.mapID)
-        if not ok or not allowed then return false end
+-- Only accepted quests can use Blizzard's official quest objective.
+-- Avoid repeatedly writing the same supertracked quest every refresh.
+function Nav:TrackQuest(questID)
+    if type(questID) ~= "number" or questID <= 0
+        or not (C_SuperTrack and
+            type(C_SuperTrack.SetSuperTrackedQuestID) == "function") then
+        return false
     end
-    if type(InCombatLockdown) == "function" then
-        local ok, combat = pcall(InCombatLockdown)
-        if not ok or combat then return false end
+    if type(C_SuperTrack.GetSuperTrackedQuestID) == "function" then
+        local ok, current = pcall(C_SuperTrack.GetSuperTrackedQuestID)
+        if ok and current == questID then return true end
     end
-    return true
-end
-
-local function place(target)
-    if not canPlace(target) then return false end
-    local ok, result = pcall(function()
-        return C_Map.SetUserWaypoint(
-            UiMapPoint.CreateFromCoordinates(target.mapID, target.x, target.y))
-    end)
-    if not ok or result == false then return false end
-    ownedWaypoint = {mapID = target.mapID, x = target.x, y = target.y}
-    if C_SuperTrack and type(C_SuperTrack.SetSuperTrackedUserWaypoint) == "function" then
-        pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
-    end
-    return true
-end
-
-function Nav:Mark(target, explicit)
-    if not target or not valid(target.mapID, target.x, target.y) then
-        return "unavailable"
-    end
-    if not canPlace(target) then return "unavailable" end
-    if not explicit then
-        -- A missing GetUserWaypoint API means we cannot safely inspect
-        -- the player's existing pin. Disable AUTO marking rather than
-        -- risk overwriting a pin they placed themselves.
-        local ok, current = currentWaypoint()
-        if not ok then return "unsupported" end
-        if matching(current, target) then
-            return "marked"
-        end
-        if current and not matching(current, ownedWaypoint) then
-            ownedWaypoint = nil
-            return "manual-pin"
-        end
-    end
-    return place(target) and "marked" or "unavailable"
-end
-
-function Nav:ClearOwnPin()
-    local ok, current = currentWaypoint()
-    if ownedWaypoint and ok and matching(current, ownedWaypoint)
-        and C_Map and type(C_Map.ClearUserWaypoint) == "function" then
-        pcall(C_Map.ClearUserWaypoint)
-    end
-    ownedWaypoint = nil
-end
-
-function Nav:OwnsCurrentPin()
-    local ok, current = currentWaypoint()
-    return ok and ownedWaypoint ~= nil and matching(current, ownedWaypoint)
+    local ok, result = pcall(C_SuperTrack.SetSuperTrackedQuestID, questID)
+    return ok and result ~= false
 end
