@@ -3,6 +3,8 @@ local ADDON_NAME = ...
 local FQ = CreateFrame("Frame")
 local Planner = _G.ForeverQuestPlanner
 local Route = _G.ForeverQuestRoute
+local Knowledge = _G.ForeverQuestKnowledge
+local Travel = _G.ForeverQuestTravel
 local VERSION = "0.3.0"
 
 local defaults = {
@@ -1380,6 +1382,21 @@ SlashCmdList.FOREVERQUEST = function(message)
         PrintPlan()
     elseif command == "data" then
         Print(Planner and Planner:Status() or "Quest data provider unavailable.")
+    elseif command == "knowledge" then
+        local counts = Knowledge and Knowledge:Counts(ForeverQuestDB)
+        if not counts then
+            Print("Account location learning is unavailable.")
+        else
+            local flights=0
+            for _ in pairs(ForeverQuestDB.flightPaths or {}) do flights=flights+1 end
+            Print(string.format("Account observed: %d quest pickups, %d turn-ins, %d known flight paths.",
+                counts.pickup,counts.turnin,flights))
+        end
+    elseif command == "knowledge clear" then
+        if Knowledge then Knowledge:Clear(ForeverQuestDB) end
+        if Planner then Planner:Invalidate() end
+        RefreshFocus()
+        Print("Cleared account-observed quest locations.")
     elseif command == "route" then
         PrintRoute()
     elseif command == "why" then
@@ -1471,7 +1488,7 @@ SlashCmdList.FOREVERQUEST = function(message)
         frame:SetPoint(defaults.point, UIParent, defaults.relativePoint, defaults.x, defaults.y)
         Print("position reset")
     else
-        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq why, /fq mode fast|balanced|complete, /fq avoid, /fq unavoid, /fq zones, /fq plan, /fq skip, /fq unskip, /fq data, /fq navigate, /fq debug, /fq reset")
+        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq why, /fq mode fast|balanced|complete, /fq avoid, /fq unavoid, /fq zones, /fq plan, /fq skip, /fq unskip, /fq knowledge, /fq data, /fq navigate, /fq debug, /fq reset")
     end
 end
 
@@ -1485,8 +1502,11 @@ FQ:RegisterEvent("QUEST_TURNED_IN")
 FQ:RegisterEvent("ZONE_CHANGED_NEW_AREA")
 FQ:RegisterEvent("ZONE_CHANGED")
 FQ:RegisterEvent("ZONE_CHANGED_INDOORS")
+pcall(FQ.RegisterEvent,FQ,"TAXIMAP_OPENED")
+pcall(FQ.RegisterEvent,FQ,"BAG_UPDATE_DELAYED")
+pcall(FQ.RegisterEvent,FQ,"PLAYER_REGEN_ENABLED")
 
-FQ:SetScript("OnEvent", function(_, event)
+FQ:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_LOGIN" then
         CopyDefaults()
         frame:ClearAllPoints()
@@ -1496,6 +1516,22 @@ FQ:SetScript("OnEvent", function(_, event)
         Print("v" .. VERSION .. " loaded. /fq for commands.")
     else
         if ForeverQuestDB then
+            if Knowledge and (event=="QUEST_ACCEPTED" or event=="QUEST_TURNED_IN") then
+                local first, second = ...
+                local questID = event=="QUEST_ACCEPTED" and second or first
+                if type(questID)~="number" then questID=first end
+                local mapID=GetBestMap()
+                local x,y=MapXY(mapID)
+                if type(questID)=="number" and x and y then
+                    Knowledge:Observe(ForeverQuestDB,
+                        event=="QUEST_ACCEPTED" and "pickup" or "turnin",
+                        questID,mapID,x,y)
+                end
+            end
+            if event=="TAXIMAP_OPENED" and Travel and Travel.LearnFlightPaths then
+                Travel:LearnFlightPaths(ForeverQuestDB)
+                return
+            end
             if Planner and (
                 event == "QUEST_ACCEPTED" or event == "QUEST_REMOVED" or
                 event == "QUEST_TURNED_IN" or event == "PLAYER_LEVEL_UP"
