@@ -223,6 +223,22 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
         end
         all = safe
     end
+    -- A player can defer a frustrating objective without abandoning its
+    -- entire quest. Temporarily set aside its individual route-stop key;
+    -- discover other eligible work first. If nothing else remains on this
+    -- map, restore the deferred objective automatically (no stranded quest).
+    local deferredCandidates = {}
+    if type(options.deferred) == "table" then
+        local ready = {mapID = mapID}
+        for _, stop in ipairs(all) do
+            if stop.kind == "objective" and options.deferred[stop.key] then
+                deferredCandidates[#deferredCandidates + 1] = stop
+            else
+                ready[#ready + 1] = stop
+            end
+        end
+        all = ready
+    end
     local activeCount = #all
     for _, q in ipairs(pickups or {}) do
         if not avoided[q.questID]
@@ -256,6 +272,13 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
             end
         end
         all = filtered
+    end
+    if #all == 0 and #deferredCandidates > 0 then
+        -- AUTO comes back to the hard objective when there is no other safe
+        -- location-backed work, without requiring /fq resume.
+        for _, stop in ipairs(deferredCandidates) do
+            all[#all + 1] = stop
+        end
     end
     plan.totalCandidates = #all
     all = groupPickupHubs(all)
