@@ -464,6 +464,7 @@ function Planner:Available() return provider() ~= nil end
 function Planner:Status() return cache.status end
 
 function Planner:Invalidate()
+    zonesMemo = {}
     cache.generation = cache.generation + 1
     cache.mapID, cache.activeKey, cache.level = nil, nil, nil
     cache.items, cache.scanning = {}, false
