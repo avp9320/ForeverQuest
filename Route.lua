@@ -130,7 +130,7 @@ local function routeScore(candidate, x, y, all, used, options)
             for _, hub in ipairs(hubs) do
                 if level >= hub.min and level <= hub.max
                     and distance(candidate.x,candidate.y,hub.x,hub.y) <= hub.radius then
-                    score = score + 0.09
+                    score = score + 0.14
                     break
                 end
             end
