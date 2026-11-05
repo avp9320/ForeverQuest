@@ -99,4 +99,59 @@ core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
 assert(string.find(card.title:GetText(),"The Barrens",1,true),
     "neighboring-zone hint should replace an empty quest tracker")
 SlashCmdList.FOREVERQUEST("zones")
+-- Multi-goal quest: both the visible objective and navigation waypoint
+-- must change when the player manually selects the second route stop.
+log={{questID=100,title="Sample quest",isHeader=false,isHidden=false}}
+local objectiveRows = {
+    {text="0/3 First Target",finished=false},
+    {text="0/4 Second Target",finished=false},
+}
+C_QuestLog.GetQuestObjectives=function() return objectiveRows end
+p.GetActivePositions=function(_, questID, complete, mapID)
+    local points = {}
+    if not objectiveRows[1].finished then
+        points[#points+1] = {
+            mapID=1411,x=.405,y=.606,goalKey="enemy:55",
+            targetName="First Target",stepLabel="Defeat First Target",
+            kind="enemy",entityName="First Target",confidence="provisional",
+        }
+    end
+    if not objectiveRows[2].finished then
+        points[#points+1] = {
+            mapID=1411,x=.435,y=.640,goalKey="enemy:56",
+            targetName="Second Target",stepLabel="Defeat Second Target",
+            kind="enemy",entityName="Second Target",confidence="provisional",
+        }
+    end
+    return points
+end
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+assert(card.title:GetText()=="Sample quest","multi-target quest visible")
+assert(card.objective:GetText()=="0/3 First Target","closest objective in AUTO")
+card.scripts.OnClick(card,"LeftButton")
+assert(ForeverQuestDB.mode=="MANUAL","manual mode for second target")
+assert(card.objective:GetText()=="0/4 Second Target",
+    "manual cycle displays the selected second target")
+assert(card.distance:GetText()=="~44,64","distance label matches selected target")
+local waypoint
+UiMapPoint={CreateFromCoordinates=function(map,x,y)
+    return {mapID=map,x=x,y=y}
+end}
+C_Map.SetUserWaypoint=function(point) waypoint=point; return true end
+C_Map.CanSetUserWaypointOnMap=function() return true end
+SlashCmdList.FOREVERQUEST("navigate")
+assert(waypoint and math.abs(waypoint.x-.435)<.001,
+    "navigation uses chosen second target, not first objective")
+
+-- A completed first target vanishes from suggested goals while the second
+-- stays in the plan and remains correctly selected.
+objectiveRows[1].text="3/3 First Target"
+objectiveRows[1].finished=true
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+assert(card.objective:GetText()=="0/4 Second Target",
+    "manual route keeps unfinished target after another goal completes")
+assert(card.distance:GetText()=="~44,64","waypoint does not regress on refresh")
+card.scripts.OnClick(card,"RightButton")
+assert(ForeverQuestDB.mode=="AUTO","automatic mode restored after multi-step test")
+
 print("ForeverQuest Core mock game/UI smoke test passed")
