@@ -7,7 +7,7 @@ local Knowledge = _G.ForeverQuestKnowledge
 local Travel = _G.ForeverQuestTravel
 local Items = _G.ForeverQuestItems
 local Navigation = _G.ForeverQuestNavigation
-local VERSION = "1.0.1"
+local VERSION = "1.0.2"
 -- Read the TOC version when the client exposes addon metadata. This avoids
 -- misleading "v0.3.0 loaded" messages after a successful WoWUp update.
 if ADDON_NAME then
@@ -1509,9 +1509,28 @@ local function UpdateArrow()
         return
     end
 
+    -- Use map aspect ratio for a physically meaningful bearing, not raw
+    -- normalized coordinates (which skew diagonals on non-square maps).
+    if C_Map and type(C_Map.GetMapWorldSize) == "function" then
+        local sizeOK, width, height = pcall(C_Map.GetMapWorldSize, mapID)
+        if sizeOK and type(width) == "number" and width > 0
+            and type(height) == "number" and height > 0 then
+            dx, dy = dx * width, dy * height
+        end
+    end
+
+    -- Map Y grows down. Vanilla Lua 5.1 has no guaranteed math.atan2;
+    -- use a quadrant-safe alternative when the client doesn't provide it.
+    local worldAngle
+    if type(math.atan2) == "function" then
+        worldAngle = math.atan2(dx, -dy)
+    elseif dy == 0 then
+        worldAngle = dx >= 0 and math.pi / 2 or -math.pi / 2
+    else
+        worldAngle = math.atan(dx / -dy)
+        if dy > 0 then worldAngle = worldAngle + math.pi end
+    end
     local facing = GetPlayerFacing and GetPlayerFacing() or 0
-    -- Map Y grows downward, so negate dy to convert to a north-up angle.
-    local worldAngle = math.atan2(dx, -dy)
     local relativeAngle = worldAngle - facing
 
     if frame.arrow.SetRotation then
