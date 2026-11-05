@@ -827,7 +827,6 @@ local function RefreshFocus()
     -- A nearby unaccepted quest is often worth grabbing on the way, but
     -- don't interrupt an active objective or nearby completed turn-in.
     state.pickup = nil
-    state.routeStop = nil
     if ForeverQuestDB.mode == "AUTO" then
         local plan = BuildRoute()
         local stop = RouteSelection(plan)
@@ -844,6 +843,8 @@ local function RefreshFocus()
                 quest = FindQuest(stop.questID) or quest
             end
         end
+    else
+        state.routeStop = nil
     end
 
     SetFocus(state.pickup and nil or quest)
