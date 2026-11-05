@@ -223,10 +223,33 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
     end
     local x, y = playerX, playerY
     local used = {}
-    for step = 1, math.min(5, #all) do
-        local best, bestScore, bestDist, bestCluster
+    -- A guide circuit is a sequence of phases, not five unrelated nearest
+    -- stops. Gather a nearby starter cluster, do active objectives, then
+    -- return for turn-ins. Newly accepted quests will trigger a fresh plan.
+    -- Only local pickups join a circuit that already has active objectives;
+    -- otherwise a distant speculative starter cannot hijack the route.
+    local function phaseForStep(step)
+        local hasObjective, hasTurnin, localPickup = false, false, false
         for _, candidate in ipairs(all) do
             if not used[candidate.key] then
+                if candidate.kind == "objective" then hasObjective = true end
+                if candidate.kind == "turnin" then hasTurnin = true end
+                if candidate.kind == "pickup"
+                    and distance(candidate.x, candidate.y, x, y) <= 0.035 then
+                    localPickup = true
+                end
+            end
+        end
+        if step == 1 and localPickup then return "pickup" end
+        if hasObjective then return "objective" end
+        if hasTurnin then return "turnin" end
+        return "pickup"
+    end
+    for step = 1, math.min(5, #all) do
+        local phase = phaseForStep(step)
+        local best, bestScore, bestDist, bestCluster
+        for _, candidate in ipairs(all) do
+            if not used[candidate.key] and candidate.kind == phase then
                 local score, dist, clustered = routeScore(candidate, x, y, all, used, options)
                 if step == 1 and candidate == pinned then
                     score = score + 100
