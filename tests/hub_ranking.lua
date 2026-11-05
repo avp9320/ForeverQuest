@@ -19,8 +19,8 @@ _G.ForeverQuestCatalog = {
             if field == "friendlyToFaction" then return "H" end
             if field ~= "spawns" then return nil end
             local positions = {
-                [201]={40.4,50},[202]={41.4,50},
-                [203]={41.6,50},[204]={90,90},
+                [201]={40.4,50},[202]={40.8,50},
+                [203]={41.0,50},[204]={90,90},
             }
             return {[14]={positions[id]}}
         end,
