@@ -4,7 +4,7 @@ A compact smart quest focus and navigation addon for **WoW: Forever**.
 
 ForeverQuest is built around one idea: **lots of quest information should be available, but very little of it should need to stay on your screen.**
 
-## v0.6.0 — individual-objective planning and clearer route decisions
+## v0.7.0 — coherent routes, pickup hubs, and native waypoint reconciliation
 
 **ForeverQuest is now a standalone addon.** The release ZIP includes its own Classic + Forever quest catalog: 4,244 quests and thousands of quest-related NPCs, objects and item-drop references from a pinned factual snapshot. You do **not** need Questie, QuestieDB, or any other quest addon installed.
 
@@ -18,6 +18,14 @@ ForeverQuest is built around one idea: **lots of quest information should be ava
 - Uses a nearby possible pickup as a suggestion when no active objective is worth interrupting.
 - Shows an estimated questgiver location and offers a waypoint on explicit Shift-click or \`/fq navigate\`.
 - Lists up to five candidate pickups with \`/fq plan\`. All candidates are **provisional** until the live client confirms them.
+
+### Route improvements in v0.7.0
+
+- Groups several potential quests available from the same or nearby NPCs into **one physical pickup stop**, so a five-stop route isn't wasted on duplicate locations. The small card shows the number of possible quests there and hover lists the other names.
+- Corrects route scoring so completed/earlier planned stops no longer count as pending nearby activities. This reduces backtracking caused by stale cluster bonuses.
+- Adds a small confidence preference for client-provided waypoints over approximate Classic-derived positions, without treating guesses as verified.
+- Keeps independent objectives available when the game provides a native waypoint, matching that waypoint to a known objective only when their coordinates are consistent. If they disagree substantially, the client location wins.
+- Automated Lua and mock-client tests now cover clustered pickups, skipped incorrect pickups, native waypoint reconciliation, and route score stability.
 
 ### Better decisions inside individual quests
 
