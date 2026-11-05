@@ -56,15 +56,42 @@ equal(#along.stops,2,"pickups near active objective remain in route")
 -- Clustering should decrease as tasks are visited in the route, not
 -- keep pulling the player back toward already planned/visited stops.
 local sameArea = {
-    {questID=401,name="Gather A",mapID=1411,x=.400,y=.400},
-    {questID=402,name="Gather B",mapID=1411,x=.403,y=.400},
-    {questID=403,name="Gather C",mapID=1411,x=.406,y=.400},
+    {questID=401,title="Defeat A",complete=false,waypointMap=1411,
+        waypointX=.400,waypointY=.400},
+    {questID=402,title="Defeat B",complete=false,waypointMap=1411,
+        waypointX=.403,waypointY=.400},
+    {questID=403,title="Defeat C",complete=false,waypointMap=1411,
+        waypointX=.406,waypointY=.400},
 }
-local clustered = route:Build({},sameArea,1411,.4,.4)
+local clustered = route:Build(sameArea,{},1411,.4,.4)
 equal(#clustered.stops,3,"three nearby pickup stops")
 equal(clustered.stops[1].overlapping,2,"first stop has two pending nearby goals")
 equal(clustered.stops[2].overlapping,1,"second stop has one pending nearby goal")
 equal(clustered.stops[3].overlapping,0,"last stop does not count visited goals")
+
+-- Several quests from the same NPC should occupy one route STOP, with
+-- distinct quest IDs kept for the tooltip and follow-up. Different
+-- questgivers at separate locations must remain separate stops.
+local hubQuests={
+    {questID=451,name="Hub quest A",mapID=1411,x=.401,y=.400,giverID=77},
+    {questID=452,name="Hub quest B",mapID=1411,x=.402,y=.401,giverID=77},
+    {questID=453,name="Hub quest C",mapID=1411,x=.403,y=.400,giverID=77},
+    {questID=454,name="Separate giver",mapID=1411,x=.445,y=.450,giverID=99},
+}
+local hubs=route:Build({},hubQuests,1411,.4,.4)
+equal(hubs.totalCandidates,4,"four distinct potential quest actions")
+equal(hubs.totalLocations,2,"two physical pickup stops")
+equal(#hubs.stops,2,"pickup hub consumes one route slot")
+equal(hubs.stops[1].pickupCount,3,"three quests at same giver")
+equal(hubs.stops[1].pickupNames[2],"Hub quest B","hub lists other quests")
+assert(route:Describe(hubs.stops[1]):find("3 possible quests",1,true),
+    "hub route description reports grouped pickups")
+
+-- Once the first quest is accepted, the remaining quests still form a
+-- pickup stop. Grouping must not permanently discard their IDs.
+local afterAccept={hubQuests[2],hubQuests[3],hubQuests[4]}
+local afterHub=route:Build({},afterAccept,1411,.4,.4)
+equal(afterHub.stops[1].pickupCount,2,"remaining quests stay discoverable")
 
 -- Small native vs provisional distance difference: trust the client.
 local trusted = route:Build({
