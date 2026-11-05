@@ -17,13 +17,11 @@ local function get(db, id, field)
     return ok and value or nil
 end
 
+-- Standalone only. The packaged factual snapshot ships INSIDE
+-- ForeverQuest, not as a separate addon or an optional runtime dependency.
 local function provider()
-    local lib = _G.LibQuestieDB
+    local lib = _G.ForeverQuestCatalog
     if not lib or not lib.Quest or not lib.Npc then return nil end
-    if lib.flavor and lib.flavor.expansion
-        and tostring(lib.flavor.expansion):lower() ~= "forever" then
-        return nil
-    end
     if type(lib.Quest.GetAllIds) ~= "function" then return nil end
     return lib
 end
@@ -39,6 +37,9 @@ local function playerXY(mapID)
 end
 
 local function zoneMap(lib)
+    if type(lib.AreaToMap) == "table" and next(lib.AreaToMap) then
+        return lib.AreaToMap
+    end
     if areaMap then return areaMap end
     local result = {
         [14] = 1411, [17] = 1413, [12] = 1429,
@@ -346,7 +347,7 @@ end
 function Planner:Scan(mapID, level, active, force)
     local lib = provider()
     if not lib or not mapID or not level then
-        cache.status = lib and "Map not available" or "QuestieDB-Forever not installed"
+        cache.status = lib and "Map not available" or "Bundled quest catalog not loaded"
         return
     end
     active = active or {}
@@ -363,7 +364,7 @@ function Planner:Scan(mapID, level, active, force)
     local ok, ids = pcall(lib.Quest.GetAllIds)
     if not ok or type(ids) ~= "table" then
         cache.scanning = false
-        cache.status = "QuestieDB quest index unavailable"
+        cache.status = "Bundled quest index unavailable"
         return
     end
     local raceID = UnitRace and select(3, UnitRace("player"))
@@ -394,7 +395,7 @@ function Planner:Scan(mapID, level, active, force)
                 local start = starter(lib, id, mapID, maps, playerX, playerY)
                 if start then
                     start.name = name
-                    start.source = "QuestieDB Forever baseline"
+                    start.source = "ForeverQuest bundled Classic/Forever baseline"
                 end
                 return start
             end)
