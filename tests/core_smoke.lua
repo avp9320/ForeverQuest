@@ -53,7 +53,7 @@ dofile("QuestData.lua")
 dofile("QuestPlanner.lua")
 dofile("Route.lua")
 dofile("Core.lua")
-local core=allFrames[2] -- first is UIParent, second is addon event frame.
+local core=allFrames[3] -- UIParent and GameTooltip were created before the addon.
 assert(core.scripts.OnEvent,"core event listener")
 core.scripts.OnEvent(core,"PLAYER_LOGIN")
 local card=_G.ForeverQuestFocusFrame
