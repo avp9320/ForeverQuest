@@ -488,8 +488,10 @@ local zonesMemo = {}
 
 function Planner:GetNextZones(currentMap, level, active, maxResults)
     local lib = provider()
+    local travel = _G.ForeverQuestTravel
+    local reachable = travel and travel:GetReachable(currentMap, 2) or nil
     local neighbors = neighboringZones[currentMap]
-    if not lib or not neighbors or not level then return {} end
+    if not lib or not level or (not reachable and not neighbors) then return {} end
     local ids = {}
     for id in pairs(active or {}) do ids[#ids+1] = id end
     table.sort(ids)
@@ -498,8 +500,18 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
             and UnitFactionGroup("player") or "?")
     if zonesMemo.key == key then return zonesMemo.options end
 
-    local eligibleZones = {}
-    for _, id in ipairs(neighbors) do eligibleZones[id] = 0 end
+    local eligibleZones, travelHints = {}, {}
+    if reachable then
+        for _, info in ipairs(reachable) do
+            eligibleZones[info.mapID] = 0
+            travelHints[info.mapID] = info
+        end
+    else
+        for _, id in ipairs(neighbors or {}) do
+            eligibleZones[id] = 0
+            travelHints[id] = {mapID=id,hops=1,via=id,path={currentMap,id}}
+        end
+    end
     local maps = zoneMap(lib)
     local raceID = UnitRace and select(3, UnitRace("player"))
     local classID = UnitClass and select(3, UnitClass("player"))
@@ -551,15 +563,26 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
                     name = info.name
                 end
             end
+            local hint = travelHints[id] or {}
+            local hops = hint.hops or 1
             options[#options+1] = {
                 mapID=id, name=name, possibleQuests=count,
+                hops=hops, via=hint.via,
+                handoff=travel and travel:DescribeHandoff(hint, zoneLabels)
+                    or "Neighboring zone",
+                -- A zone a single hop away generally beats a remote zone
+                -- with only a couple more possible quests.
+                merit=count / (hops * hops),
                 source="bundled-catalog-provisional",
             }
         end
     end
     table.sort(options,function(a,b)
-        if a.possibleQuests == b.possibleQuests then return a.mapID < b.mapID end
-        return a.possibleQuests > b.possibleQuests
+        if a.merit == b.merit then
+            if a.hops == b.hops then return a.mapID < b.mapID end
+            return a.hops < b.hops
+        end
+        return a.merit > b.merit
     end)
     zonesMemo = {key=key, options=options}
     return options
