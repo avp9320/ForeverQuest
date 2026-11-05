@@ -648,7 +648,12 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
                     or "Neighboring zone",
                 -- A zone a single hop away generally beats a remote zone
                 -- with only a couple more possible quests.
-                merit=(relevantZones[id] or 0) / (hops * hops),
+                -- Catalog opportunities remain primary; broad Horde progression
+                -- bands keep old starter zones from winning by raw volume.
+                merit=((relevantZones[id] or 0) / (hops * hops))
+                    * (travel and travel.ProgressionWeight
+                        and travel:ProgressionWeight(id, level,
+                            UnitFactionGroup and UnitFactionGroup("player")) or 1),
                 source="bundled-catalog-provisional",
             }
         end
