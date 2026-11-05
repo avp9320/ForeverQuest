@@ -103,6 +103,7 @@ quest-item button. Nothing is continuously posted to chat.
   rather than pretending it knows a cave entrance or indoor route.
 - On hover, see suggested nearby stops, related active work, potential
   chain follow-ups, source confidence and transition cautions.
+- Difficult ground objects can show source-labeled search tips in the existing hover tooltip. For *Break a Few Eggs* (#815), check tree bases in the Echo Isles near taillashers. These are search areas, not guaranteed spawns. Use `/fq later` when a contested item is frustrating; it does not abandon your quest.
 
 ### Learns as you play
 
@@ -147,6 +148,7 @@ source-code ZIP: the generated `CatalogData.lua` is included in the
 - `/fq plan` — possible unaccepted pickups near the current location.
 - `/fq mode fast` / `balanced` / `complete` — set a leveling preference.
 - `/fq avoid` / `/fq unavoid` — avoid/restore accepted quests in AUTO.
+- `/fq later` — temporarily defer only the selected unfinished objective so AUTO works on other safe tasks; deferred work returns automatically when nothing else remains. `/fq resume` restores it immediately.
 - `/fq skip` / `/fq unskip` — dismiss/restore provisional pickups.
 - `/fq here` — store current position as the selected objective location.
 - `/fq knowledge` — show observed pickup, turn-in and objective counts;
