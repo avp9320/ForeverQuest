@@ -77,7 +77,7 @@ local function entity(rows)
         Get = function(id,key) return rows[id] and rows[id][key] end,
     }
 end
-LibQuestieDB = {
+ForeverQuestCatalog = {
     flavor = {expansion="Forever"},
     Quest=entity(questRows),
     Npc=entity(npcRows),
@@ -85,7 +85,7 @@ LibQuestieDB = {
     Item=entity(itemRows),
     Enum={raceMaskById={[2]=2}},
 }
-LibQuestieDB.Quest.GetAllIds = function() return {101,102,103,104,105,106,107} end
+ForeverQuestCatalog.Quest.GetAllIds = function() return {101,102,103,104,105,106,107} end
 
 dofile("QuestPlanner.lua")
 local planner=_G.ForeverQuestPlanner
