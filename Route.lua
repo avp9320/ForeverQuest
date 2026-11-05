@@ -43,25 +43,38 @@ end
 local VALUE = { objective = 12, pickup = 10, turnin = 8 }
 local CLUSTER = 0.025
 
-local function nearCount(stop, others)
+local function nearCount(stop, others, used)
     local n = 0
     for _, other in ipairs(others) do
-        if other ~= stop and distance(stop.x, stop.y, other.x, other.y) < CLUSTER then
+        -- Only reward unfinished, unvisited activities. Previously a stop
+        -- could still get a cluster bonus from tasks already behind us,
+        -- causing pointless backtracking to the same spot.
+        if other ~= stop and not used[other.key]
+            and distance(stop.x, stop.y, other.x, other.y) < CLUSTER then
             n = n + 1
         end
     end
     return n
 end
 
-local function routeScore(candidate, x, y, all)
+local function routeScore(candidate, x, y, all, used)
     local dist = distance(candidate.x, candidate.y, x, y)
     local value = VALUE[candidate.kind] or 5
-    local clustered = math.min(3, nearCount(candidate, all))
-    -- A local pickup is worth grabbing, a remote one isn't automatically
-    -- more important than an accepted quest. Avoid obsessing over turn-ins.
-    local score = value * 0.018 + clustered * 0.029 - dist * 1.3
+    local clustered = math.min(3, nearCount(candidate, all, used))
+    -- Favor productive local groups over a distant pile of speculative
+    -- quest pickups, but never treat map distance as real terrain distance.
+    local score = value * 0.018 + clustered * 0.024 - dist * 1.3
     if candidate.kind == "pickup" and dist < 0.023 then score = score + 0.045 end
     if candidate.kind == "turnin" and dist < 0.024 then score = score + 0.04 end
+    -- A client-supplied location deserves slightly more trust than an
+    -- approximate inherited Classic entry. The bias stays small enough
+    -- that nearby provisional goals can still win.
+    local source = candidate.waypointSource or candidate.confidence
+    if source == "client" or source == "client-map-pin" then
+        score = score + 0.025
+    elseif source == "forever-beta" then
+        score = score + 0.012
+    end
     return score, dist, clustered
 end
 
@@ -122,7 +135,7 @@ function Route:Build(quests, pickups, mapID, playerX, playerY)
         local best, bestScore, bestDist, bestCluster
         for _, candidate in ipairs(all) do
             if not used[candidate.key] then
-                local score, dist, clustered = routeScore(candidate, x, y, all)
+                local score, dist, clustered = routeScore(candidate, x, y, all, used)
                 -- Small stable tie-break avoids nondeterministic NPC spawn order.
                 score = score - (tonumber(candidate.questID) or 0) * 0.000000001
                 if not bestScore or score > bestScore then
@@ -139,7 +152,8 @@ function Route:Build(quests, pickups, mapID, playerX, playerY)
         stop.overlapping = bestCluster
         stop.nearby = {}
         for _, other in ipairs(all) do
-            if other ~= best and distance(best.x, best.y, other.x, other.y) < CLUSTER then
+            if other ~= best and not used[other.key]
+                and distance(best.x, best.y, other.x, other.y) < CLUSTER then
                 stop.nearby[#stop.nearby + 1] = {
                     name = other.name, kind = other.kind,
                     questID = other.questID, goalKey = other.goalKey,
