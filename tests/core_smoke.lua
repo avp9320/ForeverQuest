@@ -299,4 +299,56 @@ assert(card.title:GetText()~="Dangerous Higher Quest",
 assert(tracked==previousTracking,
     "AUTO does not supertrack an overlevel active quest")
 
+-- Native quest choices are user actions. AUTO must stop forcibly
+-- supertracking its previous recommendation after the player selects
+-- something else in Blizzard's tracker. Manual selections must persist.
+log={
+    {questID=100,title="Near Quest",isHeader=false,isHidden=false,level=5},
+    {questID=101,title="Far Quest",isHeader=false,isHidden=false,level=5},
+}
+C_QuestLog.GetQuestObjectives=function(id)
+    return {{text="0/1 Test target",finished=false}}
+end
+p.GetActivePositions=function(_,questID,complete)
+    if complete then return {} end
+    local x,y=questID==100 and .401 or .71,
+        questID==100 and .606 or .81
+    return {{mapID=1411,x=x,y=y,goalKey="enemy:"..questID,
+        targetName="Test target",kind="enemy",confidence="client"}}
+end
+p.GetNearby=function() return {} end
+GetTime=function() return 260 end
+SlashCmdList.FOREVERQUEST("auto")
+assert(tracked==100,"AUTO initially supertracks the nearest accepted quest")
+local writesBeforeManual=trackWrites
+-- Simulate an actual player change in Blizzard's native quest tracker.
+tracked=101
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+assert(ForeverQuestDB.mode=="MANUAL",
+    "a different native tracked quest becomes an intentional manual selection")
+assert(ForeverQuestDB.manualQuestID==101,
+    "native manual quest choice is retained")
+assert(card.title:GetText()=="Far Quest",
+    "manual native choice appears in ForeverQuest instead of the AUTO suggestion")
+assert(tracked==101 and trackWrites==writesBeforeManual,
+    "refresh does not silently overwrite native manual tracking")
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+assert(tracked==101 and trackWrites==writesBeforeManual,
+    "repeated periodic refreshes honor manual quest choice")
+SlashCmdList.FOREVERQUEST("auto")
+assert(ForeverQuestDB.mode=="AUTO" and tracked==100,
+    "explicit /fq auto resumes automatic native tracking")
+local afterAuto=trackWrites
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+assert(trackWrites==afterAuto,"AUTO does not repeat tracking writes unnecessarily")
+card.scripts.OnClick(card,"LeftButton")
+assert(ForeverQuestDB.mode=="MANUAL" and card.title:GetText()=="Far Quest",
+    "manual card click cycles to the other accepted quest")
+assert(tracked==101,"explicit card selection updates native quest tracking once")
+local afterClick=trackWrites
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+assert(card.title:GetText()=="Far Quest" and tracked==101
+    and trackWrites==afterClick,
+    "refresh preserves manual card selection without extra tracking writes")
+
 print("ForeverQuest Core mock game/UI smoke test passed")
