@@ -122,15 +122,28 @@ local function routeScore(candidate, x, y, all, used, options)
     if candidate.kind == "pickup" and candidate.mapID == 1413 then
         local level = tonumber(options.level)
         if level then
+            -- Progress the *pickup* phase south as levels increase. The
+            -- overlapping bands are intentional (Ratchet remains a useful
+            -- side hub), but an older Crossroads starter must not keep
+            -- winning purely from its central position at level 23+.
+            -- Actual accepted objectives and completed turn-ins are never
+            -- penalized by this advisory hub preference.
             local hubs = {
-                {min=10, max=19, x=.52, y=.30, radius=.12}, -- Crossroads
-                {min=13, max=22, x=.62, y=.38, radius=.085}, -- Ratchet
-                {min=18, max=27, x=.45, y=.59, radius=.10}, -- Camp Taurajo
+                {min=10, max=19, x=.52, y=.30, radius=.12, weight=.22}, -- Crossroads
+                {min=13, max=22, x=.62, y=.38, radius=.085, weight=.16}, -- Ratchet
+                {min=18, max=27, x=.45, y=.59, radius=.10, weight=.24}, -- Camp Taurajo
             }
             for _, hub in ipairs(hubs) do
-                if level >= hub.min and level <= hub.max
-                    and distance(candidate.x,candidate.y,hub.x,hub.y) <= hub.radius then
-                    score = score + 0.22 * (1 - distance(candidate.x,candidate.y,hub.x,hub.y) / hub.radius)
+                local d = distance(candidate.x,candidate.y,hub.x,hub.y)
+                if d <= hub.radius then
+                    local proximity = 1 - d / hub.radius
+                    if level >= hub.min and level <= hub.max then
+                        score = score + hub.weight * proximity
+                    elseif level > hub.max + 2 then
+                        -- Soft bias only: a valid quest can still win if it
+                        -- is genuinely useful and the character is nearby.
+                        score = score - 0.13 * proximity
+                    end
                     break
                 end
             end
