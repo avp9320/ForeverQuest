@@ -77,8 +77,21 @@ function Strategy:Assess(stop, opts)
         details[#details+1] = "Low-level quest"
     end
     if group > 1 or elite then
-        modifier = modifier - 0.23
-        details[#details+1] = "Group/elite quest; caution solo"
+        local members = math.max(1, tonumber(opts.groupSize) or 1)
+        if members >= math.max(2, math.min(5, group)) then
+            modifier = modifier - 0.025
+            details[#details+1] = "Group quest; party may help"
+        else
+            modifier = modifier - 0.23
+            details[#details+1] = "Group/elite quest; caution solo"
+        end
+    end
+    if stop.kind ~= "turnin" then
+        local classMask = tonumber(questField(id,"requiredClasses"))
+        if classMask and classMask > 0 then
+            modifier = modifier + 0.027
+            details[#details+1] = "Class-specific quest"
+        end
     end
 
     local unlocks, later = self:ChainValue(id, level)
