@@ -107,6 +107,11 @@ local function prereqs(q, id, active)
     if type(disabled) == "number" and disabled > 0 and active[disabled] then
         return false
     end
+    local nextQuest = get(q, id, "nextQuestInChain")
+    if type(nextQuest) == "number" and nextQuest > 0
+        and (active[nextQuest] or completed(nextQuest) == true) then
+        return false
+    end
     local exclusives = get(q, id, "exclusiveTo")
     if type(exclusives) == "table" then
         for _, other in ipairs(exclusives) do
@@ -119,6 +124,11 @@ end
 local function eligible(lib, id, level, active, raceBit, classBit)
     local q = lib.Quest
     if active[id] or completed(id) == true then return false end
+    -- Event-gated quests should not be advertised as definitely available.
+    local flags = get(q, id, "specialFlags")
+    if type(flags) == "number" and math.floor(flags / 2) % 2 == 1 then
+        return false
+    end
     local min = get(q, id, "requiredLevel")
     if type(min) == "number" and min > level then return false end
     local max = get(q, id, "requiredMaxLevel")
@@ -138,6 +148,15 @@ local function eligible(lib, id, level, active, raceBit, classBit)
     return prereqs(q, id, active)
 end
 
+local function FriendlyQuestGiver(db, npcID, kind)
+    if kind ~= "NPC" then return true end
+    local faction = UnitFactionGroup and UnitFactionGroup("player")
+    if faction ~= "Horde" and faction ~= "Alliance" then return true end
+    local friendly = get(db, npcID, "friendlyToFaction")
+    if type(friendly) ~= "string" or friendly == "" then return true end
+    return friendly:find(faction == "Horde" and "H" or "A", 1, true) ~= nil
+end
+
 local function starter(lib, id, mapID, maps, playerX, playerY)
     local startedBy = get(lib.Quest, id, "startedBy")
     if type(startedBy) ~= "table" then return nil end
@@ -148,7 +167,8 @@ local function starter(lib, id, mapID, maps, playerX, playerY)
     }) do
         if entry.db and type(entry.ids) == "table" then
             for _, npcID in ipairs(entry.ids) do
-                local spawns = get(entry.db, npcID, "spawns")
+                local spawns = FriendlyQuestGiver(entry.db, npcID, entry.kind)
+                    and get(entry.db, npcID, "spawns") or nil
                 if type(spawns) == "table" then
                     for area, points in pairs(spawns) do
                         if (maps[area] == mapID or area == mapID)
