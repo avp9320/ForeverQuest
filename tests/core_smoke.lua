@@ -153,5 +153,6 @@ assert(card.objective:GetText()=="0/4 Second Target",
 assert(card.distance:GetText()=="~44,64","waypoint does not regress on refresh")
 card.scripts.OnClick(card,"RightButton")
 assert(ForeverQuestDB.mode=="AUTO","automatic mode restored after multi-step test")
+SlashCmdList.FOREVERQUEST("why") -- explain selected automatic objective safely
 
 print("ForeverQuest Core mock game/UI smoke test passed")
