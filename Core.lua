@@ -456,7 +456,7 @@ local function NavigateToFocus()
                 end
                 Print(string.format("Approximate %s waypoint: %.1f, %.1f (%s).",
                     quest.title, quest.waypointX * 100, quest.waypointY * 100,
-                    quest.waypointSource == "database" and "QuestieDB estimate"
+                    quest.waypointSource == "database" and "bundled catalog estimate"
                         or (quest.waypointConfidence == "classic-fallback"
                             and "Classic fallback" or "Forever guide")))
                 return
@@ -503,8 +503,8 @@ end
 local function PrintPlan()
     CollectQuests()
     if not Planner or not Planner:Available() then
-        Print("Future quest discovery needs QuestieDB-Forever (data-only addon).")
-        Print("Live quest tracking and starter locations still work without it.")
+        Print("Bundled quest catalog is unavailable; see /fq debug.")
+        Print("Live quest tracking and verified starter locations remain available.")
         return
     end
     RefreshFutureQuests()
@@ -761,7 +761,7 @@ frame:SetScript("OnEnter", function(self)
                 quest.waypointX * 100, quest.waypointY * 100,
                 quest.waypointArea or "search area"), 0.7, 0.85, 1, true)
             local confidenceNote = quest.waypointSource == "database"
-                and "QuestieDB estimate: Classic/Forever, unverified in client"
+                and "bundled catalog estimate: Classic/Forever, unverified in client"
                 or (quest.waypointConfidence == "classic-fallback"
                     and "Unverified Classic location; Forever may differ"
                     or "Forever beta guide location; verify in game")
