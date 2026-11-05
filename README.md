@@ -7,6 +7,13 @@ overlap, when to turn in, and where to quest afterward. It keeps the interface
 small: one two-line objective card, with optional hover details and a secure
 quest-item button. Nothing is continuously posted to chat.
 
+## v1.0.3 — route commitment and quest circuits
+
+- AUTO keeps the selected destination until the quest work finishes, the objective disappears, or the destination is no longer eligible. Walking near another quest no longer constantly reshuffles the route.
+- Nearby overlapping quest objectives get a stronger planning bonus, making a productive questing area more attractive than a slightly nearer isolated stop.
+- Explicit manual cycling and right-click AUTO still work; the five-stop plan remains map-relative, not invented terrain pathfinding.
+- New offline regression tests cover stable AUTO routing and clustering.
+
 ## v1.0.2 — navigation accuracy fixes
 
 - Direction arrow now uses map world dimensions when available so diagonal bearings are not distorted on rectangular zones.
