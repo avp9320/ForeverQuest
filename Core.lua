@@ -26,7 +26,6 @@ local defaults = {
     y = 180,
     mode = "AUTO",
     routeMode = "balanced",
-    autoWaypoint = true,
     manualQuestID = nil,
 }
 
@@ -47,7 +46,6 @@ local state = {
     refreshElapsed = 0,
     arrowElapsed = 0,
     navigationTarget = nil,
-    navWaypointStatus = nil,
 }
 
 local function CopyDefaults()
@@ -486,99 +484,22 @@ end
 local function NavigateToFocus()
     if state.pickup then
         local item = state.pickup
-        if Navigation and Navigation.Mark then
-            local result = Navigation:Mark({
-                mapID = item.mapID, x = item.x, y = item.y
-            }, true)
-            if result == "marked" then
-                local destination = Navigation:Destination(item.questID, "pickup",
-                    item.giverName or item.area or item.name)
-                Print("Map waypoint set: " .. tostring(destination)
-                    .. " (approximate pickup location).")
-                state.navWaypointStatus = result
-                return
-            end
-        end
-        if C_Map and type(C_Map.SetUserWaypoint) == "function"
-            and UiMapPoint and type(UiMapPoint.CreateFromCoordinates) == "function" then
-            local ok, allowed = true, true
-            if C_Map.CanSetUserWaypointOnMap then
-                ok, allowed = pcall(C_Map.CanSetUserWaypointOnMap, item.mapID)
-            end
-            if ok and allowed then
-                local setOK, setResult = pcall(function()
-                    local point = UiMapPoint.CreateFromCoordinates(item.mapID, item.x, item.y)
-                    return C_Map.SetUserWaypoint(point)
-                end)
-                if setOK and setResult ~= false then
-                    if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-                        pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
-                    end
-                    Print(string.format("Possible pickup: %s, ~%.1f, %.1f (provisional).",
-                        item.name, item.x * 100, item.y * 100))
-                    return
-                end
-            end
-        end
-        Print("The client did not allow placing this suggested pickup waypoint.")
+        local destination = Navigation and Navigation.Destination
+            and Navigation:Destination(item.questID, "pickup",
+                item.giverName or item.area or item.name)
+            or item.giverName or item.area or item.name
+        Print("Suggested pickup: " .. tostring(destination)
+            .. ". Blizzard cannot track it until you accept the quest.")
         return
     end
     local quest = FindQuest(state.focusQuestID)
     if not quest then Print("No focused quest."); return end
-
-    -- An explicit player request may replace their own waypoint.
-    if Navigation and Navigation.Mark and quest.waypointMap
-        and quest.waypointX and quest.waypointY
-        and quest.waypointSource ~= "client" then
-        local result = Navigation:Mark({
-            mapID=quest.waypointMap, x=quest.waypointX, y=quest.waypointY
-        }, true)
-        if result == "marked" then
-            Print("Map waypoint set for " .. quest.title
-                .. " (approximate search area).")
-            state.navWaypointStatus = result
-            return
-        end
+    if Navigation and Navigation.TrackQuest
+        and Navigation:TrackQuest(quest.questID) then
+        Print("Blizzard now tracks: " .. quest.title .. ".")
+    else
+        Print("Blizzard quest supertracking is unavailable on this client.")
     end
-    -- For a curated objective, the game has no usable quest waypoint.
-    -- Set a normal Blizzard map waypoint on explicit user request only.
-    if (quest.waypointSource == "curated" or quest.waypointSource == "database") and quest.waypointMap
-        and quest.waypointX and quest.waypointY
-        and C_Map and type(C_Map.SetUserWaypoint) == "function"
-        and UiMapPoint and type(UiMapPoint.CreateFromCoordinates) == "function" then
-        local allowed = true
-        if type(C_Map.CanSetUserWaypointOnMap) == "function" then
-            local ok, can = pcall(C_Map.CanSetUserWaypointOnMap, quest.waypointMap)
-            allowed = ok and can
-        end
-        if allowed then
-            local ok, set = pcall(function()
-                local point = UiMapPoint.CreateFromCoordinates(
-                    quest.waypointMap, quest.waypointX, quest.waypointY)
-                return C_Map.SetUserWaypoint(point)
-            end)
-            if ok and set ~= false then
-                if C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
-                    pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
-                end
-                Print(string.format("Approximate %s waypoint: %.1f, %.1f (%s).",
-                    quest.title, quest.waypointX * 100, quest.waypointY * 100,
-                    quest.waypointSource == "database" and "bundled catalog estimate"
-                        or (quest.waypointConfidence == "classic-fallback"
-                            and "Classic fallback" or "Forever guide")))
-                return
-            end
-        end
-    end
-
-    if C_SuperTrack and type(C_SuperTrack.SetSuperTrackedQuestID) == "function" then
-        local ok = pcall(C_SuperTrack.SetSuperTrackedQuestID, quest.questID)
-        if ok then
-            Print("Blizzard quest navigation now tracks " .. quest.title .. ".")
-            return
-        end
-    end
-    Print("No client-supported waypoint is available for this quest.")
 end
 
 -- Skips are character-specific. Database predictions can be wrong on
@@ -894,16 +815,8 @@ frame:SetScript("OnEnter", function(self)
         end
         GameTooltip:AddLine(string.format("Map: ~%.1f, %.1f (estimated quest giver)",
             state.pickup.x * 100, state.pickup.y * 100), 0.85, 0.85, 0.85)
-        if state.navWaypointStatus == "marked" then
-            GameTooltip:AddLine("Blizzard map waypoint active (press M to view).",
-                0.60, 0.94, 0.68, true)
-        elseif state.navWaypointStatus == "manual-pin" then
-            GameTooltip:AddLine("Your existing map pin is preserved. Shift-click here to replace it.",
-                0.98, 0.85, 0.55, true)
-        else
-            GameTooltip:AddLine("Shift-click the card to place a map waypoint.",
-                0.70, 0.84, 1.0, true)
-        end
+        GameTooltip:AddLine("Blizzard objective tracking starts after quest acceptance.",
+            0.70, 0.84, 1.0, true)
         GameTooltip:AddLine("Compass / yards are straight-line estimates, not paths.",
             0.65, 0.65, 0.65, true)
         if (state.pickup.pickupCount or 1) > 1
@@ -1293,9 +1206,8 @@ RefreshFocus = function()
 
     SetFocus(state.pickup and nil or quest)
 
-    -- Automatically mark the selected destination on Blizzard's map only
-    -- when no user-created waypoint would be overwritten. The full
-    -- navigation remains usable if that API is missing on a client build.
+    -- Keep local directional guidance but never create a map pin.
+    -- Accepted quests use Blizzard's own official supertracking.
     state.navigationTarget = nil
     if state.pickup then
         state.navigationTarget = {
@@ -1309,15 +1221,8 @@ RefreshFocus = function()
             y = quest.waypointY
         }
     end
-    if Navigation and Navigation.Mark and ForeverQuestDB.autoWaypoint then
-        if state.navigationTarget then
-            state.navWaypointStatus = Navigation:Mark(state.navigationTarget, false)
-        else
-            if Navigation.ClearOwnPin then Navigation:ClearOwnPin() end
-            state.navWaypointStatus = nil
-        end
-    else
-        state.navWaypointStatus = nil
+    if not state.pickup and quest and Navigation and Navigation.TrackQuest then
+        Navigation:TrackQuest(quest.questID)
     end
 
     ObserveFocusedProgress()
@@ -1739,16 +1644,6 @@ SlashCmdList.FOREVERQUEST = function(message)
         if Planner then Planner:Invalidate() end
         RefreshFocus()
         Print("Restored skipped possible quest pickups for this character.")
-    elseif command == "pin auto" then
-        ForeverQuestDB.autoWaypoint = true
-        RefreshFocus()
-        Print("Automatic map waypoints enabled; personal pins remain protected.")
-    elseif command == "pin manual" then
-        ForeverQuestDB.autoWaypoint = false
-        if Navigation and Navigation.ClearOwnPin then
-            Navigation:ClearOwnPin()
-        end
-        Print("Automatic map waypoints disabled; Shift-click still marks a destination.")
     elseif command == "navigate" then
         NavigateToFocus()
     elseif command == "report" then
@@ -1765,7 +1660,7 @@ SlashCmdList.FOREVERQUEST = function(message)
         frame:SetPoint(defaults.point, UIParent, defaults.relativePoint, defaults.x, defaults.y)
         Print("position reset")
     else
-        Print("/fq unlock, /fq lock, /fq auto, /fq pin auto, /fq pin manual, /fq route, /fq why, /fq mode fast|balanced|complete, /fq avoid, /fq unavoid, /fq zones, /fq plan, /fq skip, /fq unskip, /fq here, /fq knowledge, /fq report, /fq data, /fq navigate, /fq debug, /fq reset")
+        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq why, /fq mode fast|balanced|complete, /fq avoid, /fq unavoid, /fq zones, /fq plan, /fq skip, /fq unskip, /fq here, /fq knowledge, /fq report, /fq data, /fq navigate, /fq debug, /fq reset")
     end
 end
 
