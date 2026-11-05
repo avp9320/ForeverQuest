@@ -281,6 +281,21 @@ local candidates=planner:GetNearby(1411,10)
 equal(#candidates,2,"eligible new quests")
 equal(candidates[1].questID,101,"nearest eligible pickup")
 assert(string.find(planner:Status(),"2 possible",1,true))
+-- Solo safety must apply during discovery, not only after the route engine
+-- has already selected a dangerous quest or counted it as hub opportunity.
+questRows[101].suggestedGroup=3
+planner:Invalidate()
+planner:Scan(1411,playerLevel,{})
+equal(#planner:GetNearby(1411,10),1,"solo group quest not advertised as pickup")
+questRows[101].suggestedGroup=nil
+questRows[101].isElite=true
+planner:Invalidate()
+planner:Scan(1411,playerLevel,{})
+equal(#planner:GetNearby(1411,10),1,"solo elite quest not advertised")
+questRows[101].isElite=nil
+planner:Invalidate()
+planner:Scan(1411,playerLevel,{})
+equal(#planner:GetNearby(1411,10),2,"safe pickups return when solo restrictions lifted")
 local objective=planner:GetActivePosition(101,false,1411)
 equal(objective.entityID,21,"active NPC objective")
 local finishedOnly=planner:GetActivePosition(101,false,1411,
@@ -352,6 +367,14 @@ equal(#planner:GetNearby(1411,10),1,"completed quest suppressed")
 UnitFactionGroup = function() return "Horde" end
 local zones = planner:GetNextZones(1411, playerLevel, {}, 3)
 equal(zones[1].mapID,1413,"Durotar -> Barrens lookahead")
+questRows[104].isElite=true
+planner:Invalidate()
+zones=planner:GetNextZones(1411,playerLevel,{},3)
+equal(#zones,0,"solo-unsafe Barrens quest cannot inflate zone opportunity")
+questRows[104].isElite=nil
+planner:Invalidate()
+zones=planner:GetNextZones(1411,playerLevel,{},3)
+equal(zones[1].mapID,1413,"safe Barrens opportunity restored")
 assert(zones[1].possibleQuests >= 1,"Barrens quest candidate count")
 
 -- Do not send Horde characters to explicitly Alliance-only NPCs.
