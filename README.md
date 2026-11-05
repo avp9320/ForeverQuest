@@ -4,7 +4,7 @@ A compact smart quest focus and navigation addon for **WoW: Forever**.
 
 ForeverQuest is built around one idea: **lots of quest information should be available, but very little of it should need to stay on your screen.**
 
-## v0.3.0 — beyond the active quest log
+## v0.4.0 — pickup + objective + turn-in route planning
 
 This version introduces future-quest planning using the **optional QuestieDB-Forever data addon**. It does not require running the Questie quest tracker. Our own one-card UI remains unchanged.
 
@@ -18,6 +18,19 @@ This version introduces future-quest planning using the **optional QuestieDB-For
 - Uses a nearby possible pickup as a suggestion when no active objective is worth interrupting.
 - Shows an estimated questgiver location and offers a waypoint on explicit Shift-click or \`/fq navigate\`.
 - Lists up to five candidate pickups with \`/fq plan\`. All candidates are **provisional** until the live client confirms them.
+
+### Location-backed route planning
+
+- Plans up to five stops in your current map, combining accepted objectives, possible unaccepted quest pickups and completed quest turn-ins.
+- Weighs distance, opportunistic pickups and objective clusters rather than chasing one quest-log entry.
+- Reads QuestieDB NPC/object objective locations and known item drop sources as provisional search areas when Blizzard has no waypoint.
+- Prioritizes native Forever map data and verified Forever-specific records over Classic-derived estimates.
+- Hover on the compact card to see suggested next stops and possible follow-up quests.
+- `/fq route` prints your next five approximate stops; `/fq navigate` sets an explicit waypoint to a selected estimated objective.
+- `/fq skip` hides a wrong/unavailable pickup for the current character; `/fq unskip` restores your skipped pickup candidates.
+- No persistent map pin clutter; user waypoints are only set on request.
+
+These are **same-map map-coordinate estimates**, not walkable paths. The system cannot detect blocked terrain, precise mob spawn phases, or every Forever quest-giver requirement. It deliberately labels database pickup suggestions as possible, never guaranteed.
 
 ### Existing active-quest guidance
 
@@ -51,13 +64,16 @@ Install **[QuestieDB-Forever](https://github.com/Questie/QuestieDB/releases/late
 
 Without QuestieDB, the addon retains its active quest tracker and small independently curated quest-location fallback, but **future quest discovery is unavailable**. QuestieDB's Forever dataset contains Classic-derived assumptions and launch revisions, and may miss altered quests, blocked availability, or new spawns. Install and update the Forever-specific data release, not a Vanilla release.
 
-This is a first-pass quest pickup planner, **not** a full 1–60 cross-zone leveling route. Full quest chain planning, objective clustering beyond the current quest log, multi-stop routing and turn-in optimization remain future work.
+This is a zone-by-zone multi-stop quest planner, **not** a fully verified 1–60 cross-zone leveling path. Full quest chain planning, objective clustering beyond the current quest log, multi-stop routing and turn-in optimization remain future work.
 
 ## Commands
 
 - `/fq unlock` - unlock the focus card so it can be moved
 - `/fq lock` - lock the card in place
 - `/fq auto` - return to automatic quest selection
+- `/fq route` - suggest a short multi-stop route across active quests and unaccepted pickups
+- `/fq skip` - dismiss the currently suggested possible pickup for this character
+- `/fq unskip` - restore all previously skipped possible pickups for this character
 - `/fq plan` - list potential unaccepted nearby quests from QuestieDB
 - `/fq data` - check future quest database coverage/status
 - `/fq area` - list quests whose known objective points appear near your current focused objective
