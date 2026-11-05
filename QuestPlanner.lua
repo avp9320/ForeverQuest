@@ -179,6 +179,110 @@ local function starter(lib, id, mapID, maps, playerX, playerY)
     return best
 end
 
+-- Discover locations for active objectives and ready turn-ins across zones.
+-- QuestieDB objectives group [1] NPCs, [2] objects, [3] items. For item
+-- objectives we follow published NPC/object drop-source IDs. These are search
+-- areas, not exact proof a particular spawn will drop the quest item.
+local function closestEntity(lib, ids, db, mapID, maps, px, py, kind)
+    if not db or type(ids) ~= "table" then return nil end
+    local best, dist
+    for _, id in ipairs(ids) do
+        if type(id) == "number" and id > 0 then
+            local spawns = get(db, id, "spawns")
+            if type(spawns) == "table" then
+                for areaID, points in pairs(spawns) do
+                    if (maps[areaID] == mapID or areaID == mapID)
+                        and type(points) == "table" then
+                        for _, point in ipairs(points) do
+                            local x, y = point[1], point[2]
+                            if type(x) == "number" and type(y) == "number"
+                                and x >= 0 and x <= 100 and y >= 0 and y <= 100 then
+                                x, y = x / 100, y / 100
+                                local dx, dy = x - px, y - py
+                                local d = dx*dx + dy*dy
+                                if not dist or d < dist then
+                                    best, dist = {
+                                        mapID = mapID, x = x, y = y,
+                                        entityID = id, kind = kind,
+                                        entityName = get(db, id, "name"),
+                                        confidence = "questiedb-forever-provisional",
+                                    }, d
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return best, dist
+end
+
+function Planner:GetActivePosition(questID, complete, mapID)
+    local lib = provider()
+    if not lib or not questID or not mapID then return nil end
+    local px, py = playerXY(mapID)
+    if not px then return nil end
+    local maps = zoneMap(lib)
+    local idGroups
+    if complete then
+        idGroups = get(lib.Quest, questID, "finishedBy")
+    else
+        idGroups = get(lib.Quest, questID, "objectives")
+    end
+    if type(idGroups) ~= "table" then return nil end
+    local candidates = {}
+    local function add(ids, db, kind)
+        local found = closestEntity(lib, ids, db, mapID, maps, px, py, kind)
+        if found then candidates[#candidates+1] = found end
+    end
+    local npcIDs, objectIDs = {}, {}
+    for _, row in ipairs(type(idGroups[1]) == "table" and idGroups[1] or {}) do
+        local id = type(row) == "table" and row[1] or row
+        if type(id) == "number" and id > 0 then npcIDs[#npcIDs+1] = id end
+    end
+    for _, row in ipairs(type(idGroups[2]) == "table" and idGroups[2] or {}) do
+        local id = type(row) == "table" and row[1] or row
+        if type(id) == "number" and id > 0 then objectIDs[#objectIDs+1] = id end
+    end
+    add(npcIDs, lib.Npc, "NPC")
+    add(objectIDs, lib.Object, "object")
+
+    if not complete then
+        for _, row in ipairs(type(idGroups[3]) == "table" and idGroups[3] or {}) do
+            local itemID = type(row) == "table" and row[1] or row
+            if type(itemID) == "number" and itemID > 0 and lib.Item then
+                add(get(lib.Item, itemID, "npcDrops"), lib.Npc, "item drop NPC")
+                add(get(lib.Item, itemID, "objectDrops"), lib.Object, "item drop object")
+            end
+        end
+    end
+
+    local best, bestD
+    for _, candidate in ipairs(candidates) do
+        local dx, dy = candidate.x - px, candidate.y - py
+        local d = dx*dx + dy*dy
+        if not bestD or d < bestD then best, bestD = candidate, d end
+    end
+    return best
+end
+
+function Planner:GetChainPreview(questID, maxCount)
+    local lib = provider()
+    if not lib or not questID then return {} end
+    local children = get(lib.Quest, questID, "childQuests")
+    if type(children) ~= "table" then return {} end
+    local result = {}
+    for _, id in ipairs(children) do
+        local name = get(lib.Quest, id, "name")
+        if type(name) == "string" and name ~= "" then
+            result[#result+1] = {questID = id, name = name}
+        end
+        if #result >= (maxCount or 3) then break end
+    end
+    return result
+end
+
 function Planner:Available() return provider() ~= nil end
 function Planner:Status() return cache.status end
 
