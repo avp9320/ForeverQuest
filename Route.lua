@@ -90,9 +90,29 @@ function Route:Build(quests, pickups, mapID, playerX, playerY)
                 q.waypointConfidence or q.waypointSource, q.waypointArea)
         end
     end
+    -- Unaccepted quests are provisional. Do not cross a zone just because
+    -- a distant quest giver has several possible quests. Collect them
+    -- opportunistically when near the player, or near a known active task.
+    -- With an empty active log, future pickups remain the primary plan.
+    local activeCount = #all
     for _, q in ipairs(pickups or {}) do
-        append(all, seen, "pickup", q.questID, q.name,
-            q.mapID, q.x, q.y, q.confidence, q.area)
+        if validPoint(q.mapID, q.x, q.y, mapID) then
+            local playerDistance = distance(playerX, playerY, q.x, q.y)
+            local alongRoute = false
+            if activeCount > 0 then
+                for i = 1, activeCount do
+                    local active = all[i]
+                    if distance(q.x, q.y, active.x, active.y) <= 0.035 then
+                        alongRoute = true
+                        break
+                    end
+                end
+            end
+            if activeCount == 0 or playerDistance <= 0.055 or alongRoute then
+                append(all, seen, "pickup", q.questID, q.name,
+                    q.mapID, q.x, q.y, q.confidence, q.area)
+            end
+        end
     end
 
     plan.totalCandidates = #all
