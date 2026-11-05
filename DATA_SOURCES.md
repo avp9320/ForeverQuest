@@ -42,3 +42,10 @@ then this catalog. `/fq skip` hides an incorrect pickup candidate, while
 
 This catalog is refreshed only with a new ForeverQuest build/release;
 addons cannot fetch remote files while the game is running.
+
+
+## Authored pickup landmark additions in v1.0.1
+
+- **Quest 791, Carry Your Weight**: Furl Scornbrow (NPC 3147), the Razor Hill watchtower's upper level, Durotar ~49.9, 40.4. This is a location published for the Forever game by [Bind on Forever](https://bindonforever.com/quest/791) and cross-checked against [Questing.wiki's data record](https://questing.wiki/wow-forever/quests/791/). No source guide prose or route instructions are copied. Still a *published waypoint*, not a quest pickup directly observed by ForeverQuest on this account.
+
+Positions are approximate destination points; buildings may have upper/lower floors. Actual acceptance remains determined by the game.
