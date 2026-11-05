@@ -52,6 +52,8 @@ local QFields = {
     "requiredMaxRep", "parentQuest", "requiredSpell", "requiredSpecialization",
     "requiredMaxLevel", "availableUntilCompleted", "availableStartingWith",
     "requiredRanks", "disabledByQuest", "nextQuestInChain", "specialFlags",
+    "questFlags", "sourceItemId", "requiredSourceItems",
+    "inGroupWith", "breadcrumbForQuestId", "breadcrumbs",
 }
 local quests, npcs, objects, items = {}, {}, {}, {}
 local neededNpc, neededObject, neededItem = {}, {}, {}
