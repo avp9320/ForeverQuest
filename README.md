@@ -7,6 +7,12 @@ overlap, when to turn in, and where to quest afterward. It keeps the interface
 small: one two-line objective card, with optional hover details and a secure
 quest-item button. Nothing is continuously posted to chat.
 
+## v1.0.2 — navigation accuracy fixes
+
+- Direction arrow now uses map world dimensions when available so diagonal bearings are not distorted on rectangular zones.
+- Direction calculations fall back safely on Lua 5.1 clients without `math.atan2`, instead of breaking the arrow update.
+- Keeps the v1.0.1 compass, distance, descriptive destinations, and automatic map waypoints.
+
 ## v1.0.1 — readable navigation and map waypoints
 
 - The compact card now describes the **quest giver**, not just the quest title and map coordinates.
