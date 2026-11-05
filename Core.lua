@@ -59,6 +59,16 @@ local function SafeQuestTitle(questID, fallback)
     return fallback or ("Quest " .. tostring(questID))
 end
 
+local function IsEliteQuest(questID)
+    if C_QuestLog and type(C_QuestLog.GetQuestTagInfo)=="function" then
+        local ok,info=pcall(C_QuestLog.GetQuestTagInfo,questID)
+        if ok and type(info)=="table" then
+            return info.isElite==true
+        end
+    end
+    return false
+end
+
 local function GetObjectives(questID)
     if not (C_QuestLog and C_QuestLog.GetQuestObjectives) then
         return nil
@@ -370,7 +380,7 @@ local function CollectQuests()
                 logIndex = index,
                 suggestedGroup = info.suggestedGroup,
                 questLevel = info.level or info.difficultyLevel,
-                isElite = false,
+                isElite = IsEliteQuest(questID),
             })
         end
     end
