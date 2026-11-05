@@ -306,6 +306,10 @@ log={
     {questID=100,title="Near Quest",isHeader=false,isHidden=false,level=5},
     {questID=101,title="Far Quest",isHeader=false,isHidden=false,level=5},
 }
+C_QuestLog.GetTitleForQuestID=function(id)
+    if id==100 then return "Near Quest" end
+    if id==101 then return "Far Quest" end
+end
 C_QuestLog.GetQuestObjectives=function(id)
     return {{text="0/1 Test target",finished=false}}
 end
