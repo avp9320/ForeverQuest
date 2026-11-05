@@ -47,44 +47,50 @@ end
 -- a turn-in next to the player still wins over a long cross-zone run.
 local VALUE = { objective = 12, pickup = 10, turnin = 8 }
 local CLUSTER = 0.035
--- Multiple quests offered by a single NPC are ONE physical stop. Merge
--- identical starters or extremely close NPCs so the five-stop plan is not
--- wasted on a list of quests all offered at the same doorway.
-local PICKUP_HUB = 0.005
+-- A questing hub may contain several distinct quest givers. Cluster nearby
+-- starters into one collection trip, but keep distant villages separate.
+-- Map-relative radius is intentionally conservative; not road distance.
+local PICKUP_HUB = 0.018
 
 local function groupPickupHubs(candidates)
     local grouped = {mapID = candidates.mapID}
+    -- Deterministic grouping regardless of catalog enumeration order.
+    local pickups = {}
     for _, candidate in ipairs(candidates) do
-        local hub = nil
         if candidate.kind == "pickup" then
-            for _, existing in ipairs(grouped) do
-                if existing.kind == "pickup"
-                    and existing.mapID == candidate.mapID then
-                    local close = distance(existing.x, existing.y,
-                        candidate.x, candidate.y)
-                    if (existing.giverID and candidate.giverID
-                            and existing.giverID == candidate.giverID
-                            and close <= 0.015)
-                        or close <= PICKUP_HUB then
-                        hub = existing
-                        break
-                    end
-                end
+            pickups[#pickups + 1] = candidate
+        else
+            grouped[#grouped + 1] = candidate
+        end
+    end
+    table.sort(pickups, function(a, b)
+        if a.x ~= b.x then return a.x < b.x end
+        if a.y ~= b.y then return a.y < b.y end
+        return a.questID < b.questID
+    end)
+    local hubs = {}
+    for _, candidate in ipairs(pickups) do
+        local hub, bestDistance
+        for _, existing in ipairs(hubs) do
+            local d = distance(existing.x, existing.y, candidate.x, candidate.y)
+            if d <= PICKUP_HUB and (not bestDistance or d < bestDistance) then
+                hub, bestDistance = existing, d
             end
         end
         if hub then
             hub.pickupCount = hub.pickupCount + 1
             hub.pickupNames[#hub.pickupNames + 1] = candidate.name
             hub.pickupIDs[#hub.pickupIDs + 1] = candidate.questID
+            hub.pickupGivers[#hub.pickupGivers + 1] = candidate.giverName
         else
-            if candidate.kind == "pickup" then
-                candidate.pickupCount = 1
-                candidate.pickupNames = {candidate.name}
-                candidate.pickupIDs = {candidate.questID}
-            end
-            grouped[#grouped + 1] = candidate
+            candidate.pickupCount = 1
+            candidate.pickupNames = {candidate.name}
+            candidate.pickupIDs = {candidate.questID}
+            candidate.pickupGivers = {candidate.giverName or "unknown"}
+            hubs[#hubs + 1] = candidate
         end
     end
+    for _, hub in ipairs(hubs) do grouped[#grouped + 1] = hub end
     return grouped
 end
 
