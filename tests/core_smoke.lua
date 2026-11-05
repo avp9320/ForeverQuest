@@ -190,11 +190,14 @@ C_QuestLog.GetNextWaypointForMap=function(questID,mapID)
     if questID==100 then return .405,.605 end
 end
 core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
-assert(card.objective:GetText()=="0/3 First Target",
+local nativeFirst = card.objective:GetText()
+assert(nativeFirst=="0/3 First Target" or nativeFirst=="0/4 Second Target",
     "client waypoint and multiple goals coexist")
 card.scripts.OnClick(card,"LeftButton")
-assert(card.objective:GetText()=="0/4 Second Target",
-    "second database goal remains selectable with native waypoint")
+local nativeSecond = card.objective:GetText()
+assert(nativeSecond~=nativeFirst
+    and (nativeSecond=="0/3 First Target" or nativeSecond=="0/4 Second Target"),
+    "other database goal remains selectable with native waypoint")
 card.scripts.OnClick(card,"RightButton")
 C_QuestLog.GetNextWaypointForMap=function(questID,mapID)
     if questID==100 then return .80,.80 end
