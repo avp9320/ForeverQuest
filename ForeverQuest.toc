@@ -2,7 +2,7 @@
 ## Title: ForeverQuest
 ## Notes: Standalone quest planner with built-in Forever data, routes, pickups and quest-item help.
 ## Author: avp9320
-## Version: 1.0.6
+## Version: 1.0.7
 ## SavedVariables: ForeverQuestDB
 
 QuestData.lua
@@ -20,3 +20,4 @@ Navigation.lua
 Core.lua
 Theme.lua
 Debug.lua
+Export.lua
