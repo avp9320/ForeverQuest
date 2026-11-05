@@ -7,7 +7,7 @@ local Knowledge = _G.ForeverQuestKnowledge
 local Travel = _G.ForeverQuestTravel
 local Items = _G.ForeverQuestItems
 local Navigation = _G.ForeverQuestNavigation
-local VERSION = "1.0.4"
+local VERSION = "1.0.5"
 -- Read the TOC version when the client exposes addon metadata. This avoids
 -- misleading "v0.3.0 loaded" messages after a successful WoWUp update.
 if ADDON_NAME then
