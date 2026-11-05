@@ -35,6 +35,24 @@ equal(#path.stops,0,"other-zone coordinates excluded")
 path = route:Build({}, {}, 1411, .4, .6)
 equal(#path.stops,0,"empty planning")
 
+-- A remote, speculative pickup must not derail a nearby active objective.
+local localWork={{questID=301,title="Local work",complete=false,
+    waypointMap=1411,waypointX=.420,waypointY=.615}}
+local farPickup={{questID=302,name="Remote guess",mapID=1411,x=.87,y=.85}}
+local guarded=route:Build(localWork,farPickup,1411,.4,.6)
+equal(#guarded.stops,1,"remote speculative pickup excluded while busy")
+equal(guarded.stops[1].questID,301,"keep nearby accepted objective")
+local noActive=route:Build({},farPickup,1411,.4,.6)
+equal(#noActive.stops,1,"future pickup still works with empty quest log")
+
+-- A distant pickup really ON the way to an accepted objective remains
+-- worthwhile, even though the quest giver isn't next to the character.
+local onWay={{questID=303,title="Far accepted objective",complete=false,
+    waypointMap=1411,waypointX=.65,waypointY=.65}}
+local passerby={{questID=304,name="Passing quest giver",mapID=1411,x=.645,y=.648}}
+local along=route:Build(onWay,passerby,1411,.4,.6)
+equal(#along.stops,2,"pickups near active objective remain in route")
+
 local playerLevel = 8
 local finished = {[105]=true}
 UnitRace = function() return "Orc","Orc",2 end
