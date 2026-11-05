@@ -1021,6 +1021,11 @@ local function BuildRoute()
         avoided = AvoidedQuests(),
         active = active,
         groupSize = math.max(1,(GetNumGroupMembers and GetNumGroupMembers()) or 1),
+        -- Stay with the current unfinished destination instead of treating
+        -- every small movement as a reason to rewrite the whole circuit.
+        preferredKey = ForeverQuestDB.mode == "AUTO"
+            and state.routeStop and state.routeStop.mapID == mapID
+            and state.routeStop.key or nil,
     })
     state.routePlan = plan
     return plan
