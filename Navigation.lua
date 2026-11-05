@@ -71,9 +71,10 @@ function Nav:Guidance(target)
     local normalized = math.sqrt(dx * dx + dy * dy)
     local radians = math.atan2 and math.atan2(dx, -dy) or nil
     if not radians then
-        -- Lua 5.1 has no guaranteed atan2 outside WoW's built-ins.
-        if math.atan2 then radians = math.atan2(dx, -dy)
-        elseif dx == 0 then radians = dy < 0 and 0 or math.pi
+        -- Lua 5.1 doesn't guarantee atan2. Handle the east/west axis
+        -- explicitly instead of dividing by negative zero.
+        if dx == 0 and dy == 0 then radians = 0
+        elseif dy == 0 then radians = dx > 0 and math.pi / 2 or -math.pi / 2
         else
             radians = math.atan(dx / -dy)
             if dy > 0 then radians = radians + math.pi end
