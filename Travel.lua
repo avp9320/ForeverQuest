@@ -46,6 +46,34 @@ local links = {
     [1452]={1448},                 -- Winterspring
 }
 
+-- Broad Horde leveling-zone preferences. These are advisory level bands,
+-- not claims that every quest in a zone is available or safe. The catalog
+-- still supplies actual eligible quest counts before a zone is suggested.
+-- Exclude Alliance starter territories from AUTO handoff preferences.
+local hordeBands = {
+    [1411]={1,12}, [1412]={1,12}, [1420]={1,12},
+    [1413]={10,27}, [1421]={10,22}, [1440]={18,30},
+    [1442]={15,28}, [1443]={30,40}, [1441]={25,35},
+    [1445]={35,45}, [1444]={40,50}, [1446]={43,52},
+    [1449]={48,55}, [1451]={55,60}, [1448]={48,55},
+    [1452]={53,60}, [1424]={20,32}, [1417]={30,40},
+    [1416]={30,40}, [1434]={30,50}, [1418]={35,45},
+    [1427]={43,50}, [1428]={50,60}, [1422]={50,60},
+    [1423]={55,60},
+}
+
+function Travel:ProgressionWeight(mapID, level, faction)
+    if faction and faction ~= "Horde" then return 1 end
+    local band = hordeBands[mapID]
+    if not band then return 0.25 end
+    level = tonumber(level)
+    if not level then return 1 end
+    if level < band[1] then return 0.12 end
+    if level > band[2] + 5 then return 0.22 end
+    if level > band[2] then return 0.55 end
+    return 1
+end
+
 function Travel:GetReachable(currentMap, maxHops)
     if type(currentMap) ~= "number" then return {} end
     maxHops = math.min(4, math.max(1, tonumber(maxHops) or 2))
