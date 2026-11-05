@@ -28,6 +28,8 @@ local state = {
     lastRouteSwitch = 0,
     manualChoice = nil,
     nextZones = nil,
+    mapCaution = nil,
+    mapCautionKey = nil,
     focusScore = nil,
     lastFocusChange = 0,
     refreshElapsed = 0,
@@ -822,6 +824,9 @@ frame:SetScript("OnEnter", function(self)
     GameTooltip:AddLine("Left click / mouse wheel: cycle quests", 0.8, 0.8, 0.8)
     GameTooltip:AddLine("Right click: return to AUTO", 0.8, 0.8, 0.8)
     GameTooltip:AddLine("Shift-left click: navigate using Blizzard's quest tracking", 0.8, 0.8, 0.8)
+    if state.mapCaution then
+        GameTooltip:AddLine(state.mapCaution, 0.96, 0.74, 0.42, true)
+    end
     if state.pickup then
         GameTooltip:AddLine("/fq skip hides an unavailable suggested quest",
             0.7, 0.7, 0.7)
@@ -1295,7 +1300,18 @@ local function UpdateArrow()
     local questID = state.focusQuestID
     local quest = FindQuest(questID)
     local pickup = state.pickup
-    local mapID = (pickup and pickup.mapID) or (quest and quest.waypointMap) or GetBestMap()
+    local currentMap = GetBestMap()
+    local mapID = (pickup and pickup.mapID) or (quest and quest.waypointMap) or currentMap
+    local key = tostring(currentMap) .. ":" .. tostring(mapID)
+    if state.mapCautionKey ~= key then
+        state.mapCautionKey = key
+        state.mapCaution = Travel and Travel.GetLayerCaution
+            and Travel:GetLayerCaution(currentMap,mapID) or nil
+    end
+    if state.mapCaution then
+        ShowDirectionArrow(false)
+        return
+    end
     if (not questID and not pickup) or not mapID
         or not (C_Map and C_Map.GetPlayerMapPosition) then
         ShowDirectionArrow(false)
