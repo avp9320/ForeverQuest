@@ -63,15 +63,20 @@ local questRows = {
     [106] = {name="Item drop",requiredLevel=2,
         startedBy={{11}},objectives={{},{},{{801,3}}}},
     [107] = {name="Next chapter",requiredLevel=15,startedBy={{11}}},
+    -- Active-only fixture: several different goals for the SAME quest.
+    [108] = {name="Mixed objective",finishedBy={{12}},
+        objectives={{{21,2},{22,4}},{{81,1}},{{801,3}}}},
 }
 local npcRows = {
     [11] = {name="Starter",spawns={[14]={{40.5,60.3}}}},
     [12] = {name="Turn-in",spawns={[14]={{41,62}}}},
     [14] = {name="Other zone",spawns={[17]={{40,60}}}},
     [21] = {name="Scorpid",spawns={[14]={{45,65}}}},
+    [22] = {name="Familiar",spawns={[14]={{51,73}}}},
     [31] = {name="Item source",spawns={[14]={{44.5,64.5}}}},
 }
-local itemRows = {[801] = {npcDrops={31}}}
+local itemRows = {[801] = {name="Supply Token",npcDrops={31}}}
+local objectRows = {[81] = {name="Supply Chest",spawns={[14]={{53,70}}}}}
 local function entity(rows)
     return {
         Get = function(id,key) return rows[id] and rows[id][key] end,
@@ -81,7 +86,7 @@ ForeverQuestCatalog = {
     flavor = {expansion="Forever"},
     Quest=entity(questRows),
     Npc=entity(npcRows),
-    Object=entity({}),
+    Object=entity(objectRows),
     Item=entity(itemRows),
     Enum={raceMaskById={[2]=2}},
 }
@@ -109,6 +114,38 @@ local drop=planner:GetActivePosition(106,false,1411)
 equal(drop.entityID,31,"item drop source")
 local chain=planner:GetChainPreview(101)
 equal(chain[1].name,"Next chapter","future chain preview")
+
+local goals=planner:GetActivePositions(108,false,1411,nil,6)
+equal(#goals,4,"distinct unfinished goals in one quest")
+local unique={}
+for _,goal in ipairs(goals) do
+    assert(not unique[goal.goalKey],"duplicate quest goal")
+    unique[goal.goalKey]=true
+end
+assert(unique["enemy:21"] and unique["enemy:22"] and unique["object:81"]
+    and unique["item:801"],"mixed objective types")
+local remaining=planner:GetActivePositions(108,false,1411,
+    {{text="2/2 Scorpid slain",finished=true},
+     {text="4/4 Familiar slain",finished=true}},6)
+equal(#remaining,2,"completed kill goals are excluded")
+local doneItem=planner:GetActivePositions(108,false,1411,
+    {{text="1/1 Supply Token",finished=true}},6)
+equal(#doneItem,3,"completed item goal is excluded")
+local turnTargets=planner:GetActivePositions(108,true,1411,nil,6)
+equal(#turnTargets,1,"one alternative turn-in stop")
+
+local multi=route:Build({
+    {questID=108,title="Mixed objective",complete=false,
+        waypointMap=1411,waypointX=.45,waypointY=.65,
+        goalPoints=goals}
+}, {}, 1411,.4,.6)
+equal(#multi.stops,4,"multi-objective route contains separate stops")
+local keys={}
+for _,stop in ipairs(multi.stops) do
+    assert(not keys[stop.key], "duplicate stop identity")
+    keys[stop.key]=true
+    assert(stop.targetName and stop.goalKey,"stop has specific objective")
+end
 
 planner:Invalidate()
 planner:Scan(1411,playerLevel,{[101]=true})
