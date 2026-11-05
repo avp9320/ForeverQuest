@@ -27,7 +27,8 @@ local turnin = {
         waypointX=.402, waypointY=.602},
 }
 path = route:Build({turnin[1], active[1]}, {}, 1411, .4, .6)
-equal(path.stops[1].kind, "turnin", "nearby turn-in")
+equal(path.stops[1].kind, "objective", "finish objectives before returning for turn-ins")
+equal(path.stops[2].kind, "turnin", "turn-in follows the objective circuit")
 path = route:Build({active[1]}, {{questID=1,name="Duplicate",mapID=1411,x=.42,y=.61}},1411,.4,.6)
 equal(#path.stops,2,"distinct kinds remain distinct")
 path = route:Build(active, nearby, 1412, .4, .6)
@@ -134,6 +135,28 @@ local grouping=route:Build({
 }, {},1411,.4,.5)
 equal(grouping.stops[1].questID,511,
     "multi-quest area beats slightly closer isolated stop")
+
+-- A hub circuit collects nearby offers before leaving for work, then
+-- returns for completed turn-ins. Existing objective progress stays eligible.
+local circuit=route:Build({
+    {questID=701,title="Clear the camp",complete=false,
+        waypointMap=1411,waypointX=.65,waypointY=.65},
+    {questID=702,title="Report back",complete=true,
+        waypointMap=1411,waypointX=.402,waypointY=.601},
+}, {
+    {questID=703,name="Collect supplies",mapID=1411,x=.403,y=.603},
+},1411,.4,.6)
+equal(circuit.stops[1].kind,"pickup","collect local hub quests first")
+equal(circuit.stops[2].kind,"objective","then do the objective circuit")
+equal(circuit.stops[3].kind,"turnin","return for turn-ins after objectives")
+local pinnedTurn=route:Build({
+    {questID=701,title="Clear the camp",complete=false,
+        waypointMap=1411,waypointX=.65,waypointY=.65},
+    {questID=702,title="Report back",complete=true,
+        waypointMap=1411,waypointX=.402,waypointY=.601},
+}, {},1411,.4,.6,{preferredKey="turnin:702:main"})
+equal(pinnedTurn.stops[1].kind,"objective",
+    "old pinned turn-in cannot override circuit phase")
 
 -- AUTO must never send a level 7 character to a level 10 quest,
 -- even if it is next door or was previously the committed route stop.
