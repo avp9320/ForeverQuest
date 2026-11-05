@@ -330,4 +330,22 @@ npcRows[14].friendlyToFaction = "A"
 planner:Invalidate()
 zones = planner:GetNextZones(1411, playerLevel, {}, 3)
 equal(#zones,0,"opposite-faction questgiver excluded")
+-- Zone recommendations must not reuse another character's cached choices.
+npcRows[14].friendlyToFaction = "H"
+questRows[104].requiredRaces = 2
+planner:Invalidate()
+UnitRace = function() return "Orc","Orc",2 end
+zones = planner:GetNextZones(1411, playerLevel, {}, 3)
+equal(zones[1].mapID,1413,"Horde Orc sees eligible Barrens quest")
+UnitRace = function() return "Human","Human",1 end
+zones = planner:GetNextZones(1411, playerLevel, {}, 3)
+equal(#zones,0,"zone cache invalidates across character races")
+UnitRace = function() return "Orc","Orc",2 end
+questRows[104].requiredClasses = 1
+planner:Invalidate()
+zones = planner:GetNextZones(1411, playerLevel, {}, 3)
+equal(zones[1].mapID,1413,"Warrior sees class-eligible Barrens quest")
+UnitClass = function() return "Mage","MAGE",8 end
+zones = planner:GetNextZones(1411, playerLevel, {}, 3)
+equal(#zones,0,"zone cache invalidates across classes")
 print("ForeverQuest offline route + bundled catalog adapter tests passed")
