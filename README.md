@@ -7,6 +7,13 @@ overlap, when to turn in, and where to quest afterward. It keeps the interface
 small: one two-line objective card, with optional hover details and a secure
 quest-item button. Nothing is continuously posted to chat.
 
+## Development milestone — phased quest circuits (not yet a complete 1–60 guide)
+
+- Route planning now prefers collecting nearby hub quests, completing accepted objectives, and returning for turn-ins in that order. A pinned turn-in cannot interrupt unfinished objectives.
+- Future quest discovery excludes catalog quests above the player's current level, rather than relying on the later route filter. Pickup difficulty and suggested group size now reach the safety filter.
+- Added offline regression cases for pickup → objective → turn-in order and stale pinned turn-ins.
+- This is a foundational routing improvement, **not** yet a curated 1–60 leveling guide: the route still uses approximate same-map positions and cannot promise full zone-by-zone coverage or actual terrain-optimal paths. WoW: Forever gameplay verification is pending.
+
 ## v1.0.5 — level-safe automatic routing
 
 - AUTO never recommends accepted objectives or tentative quest pickups whose known quest level exceeds the player's current level. Quest-log level is preferred to catalog level when available.
