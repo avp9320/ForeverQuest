@@ -6,7 +6,16 @@ local Route = _G.ForeverQuestRoute
 local Knowledge = _G.ForeverQuestKnowledge
 local Travel = _G.ForeverQuestTravel
 local Items = _G.ForeverQuestItems
-local VERSION = "0.3.0"
+local VERSION = "1.0.0"
+-- Read the TOC version when the client exposes addon metadata. This avoids
+-- misleading "v0.3.0 loaded" messages after a successful WoWUp update.
+if ADDON_NAME then
+    local metadata = C_AddOns and C_AddOns.GetAddOnMetadata or GetAddOnMetadata
+    if type(metadata)=="function" then
+        local ok,value=pcall(metadata,ADDON_NAME,"Version")
+        if ok and type(value)=="string" and value~="" then VERSION=value end
+    end
+end
 
 local defaults = {
     locked = true,
@@ -15,6 +24,7 @@ local defaults = {
     x = 0,
     y = 180,
     mode = "AUTO",
+    routeMode = "balanced",
     manualQuestID = nil,
 }
 
@@ -1428,6 +1438,32 @@ frame:SetScript("OnUpdate", function(_, elapsed)
     end
 end)
 
+local function ReportState()
+    local mapID=GetBestMap()
+    local stop=state.routeStop
+    Print(string.format("REPORT v%s level=%s map=%s mode=%s preference=%s active=%d",
+        VERSION,tostring(UnitLevel and UnitLevel("player") or "?"),
+        tostring(mapID),tostring(ForeverQuestDB.mode),
+        tostring(ForeverQuestDB.routeMode),#state.quests))
+    Print("Catalog: " .. (Planner and Planner:Status() or "unavailable"))
+    if stop then
+        Print(string.format("Focus kind=%s quest=%s goal=%s map=%s at ~%.1f,%.1f source=%s",
+            tostring(stop.kind),tostring(stop.questID),
+            tostring(stop.goalKey),tostring(stop.mapID),
+            (stop.x or 0)*100,(stop.y or 0)*100,
+            tostring(stop.confidence or stop.waypointSource or "unknown")))
+    else
+        Print("No current coordinate-backed route stop.")
+    end
+    if state.mapCaution then Print("Navigation caution: "..state.mapCaution) end
+    local count=Knowledge and Knowledge:Counts(ForeverQuestDB)
+    if count then
+        Print(string.format("Account observations: pickups=%d turnins=%d goals=%d",
+            count.pickup,count.turnin,count.objective or 0))
+    end
+    Print("Use /fq here at a correctly found objective, or /fq skip on an unavailable pickup.")
+end
+
 local function DebugDump()
     Print("version " .. VERSION .. ", mode " .. tostring(ForeverQuestDB.mode))
     Print("mapID " .. tostring(GetBestMap()) .. ", quests " .. tostring(#state.quests) .. ", focus " .. tostring(state.focusQuestID))
@@ -1577,6 +1613,8 @@ SlashCmdList.FOREVERQUEST = function(message)
         Print("Restored skipped possible quest pickups for this character.")
     elseif command == "navigate" then
         NavigateToFocus()
+    elseif command == "report" then
+        ReportState()
     elseif command == "debug" then
         CollectQuests()
         DebugDump()
@@ -1589,7 +1627,7 @@ SlashCmdList.FOREVERQUEST = function(message)
         frame:SetPoint(defaults.point, UIParent, defaults.relativePoint, defaults.x, defaults.y)
         Print("position reset")
     else
-        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq why, /fq mode fast|balanced|complete, /fq avoid, /fq unavoid, /fq zones, /fq plan, /fq skip, /fq unskip, /fq here, /fq knowledge, /fq data, /fq navigate, /fq debug, /fq reset")
+        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq why, /fq mode fast|balanced|complete, /fq avoid, /fq unavoid, /fq zones, /fq plan, /fq skip, /fq unskip, /fq here, /fq knowledge, /fq report, /fq data, /fq navigate, /fq debug, /fq reset")
     end
 end
 
