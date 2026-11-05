@@ -2,6 +2,7 @@
 assert(io.open("CatalogData.lua","rb"),"CatalogData.lua not generated")
 dofile("CatalogData.lua")
 dofile("CatalogRuntime.lua")
+dofile("QuestData.lua")
 local db = _G.ForeverQuestCatalog
 assert(type(db)=="table","ForeverQuestCatalog not initialized")
 assert(_G.LibQuestieDB == nil,"unexpected dependence on QuestieDB")
