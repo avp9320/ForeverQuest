@@ -4,9 +4,24 @@ A compact smart quest focus and navigation addon for **WoW: Forever**.
 
 ForeverQuest is built around one idea: **lots of quest information should be available, but very little of it should need to stay on your screen.**
 
-## v0.2.1
+## v0.3.0 — beyond the active quest log
 
-The first playable version provides:
+This version introduces future-quest planning using the **optional QuestieDB-Forever data addon**. It does not require running the Questie quest tracker. Our own one-card UI remains unchanged.
+
+### Future quest discovery
+
+- Reads the QuestieDB public API for quests not yet accepted.
+- Looks up quest starters (NPCs/objects) and spawn positions on the current map.
+- Filters candidates by level, known completion, current quest log, race/class, and common quest-chain prerequisites.
+- Suppresses uncertain reputation/profession/spell-gated quests rather than claiming eligibility.
+- Checks the current zone in small batches to limit login lag.
+- Uses a nearby possible pickup as a suggestion when no active objective is worth interrupting.
+- Shows an estimated questgiver location and offers a waypoint on explicit Shift-click or \`/fq navigate\`.
+- Lists up to five candidate pickups with \`/fq plan\`. All candidates are **provisional** until the live client confirms them.
+
+### Existing active-quest guidance
+
+
 
 - A compact 258x46 two-line quest focus card: title and distance together, objective below
 - A subtle, translucent tracker-like appearance (no heavy tooltip border or permanent AUTO label)
@@ -30,11 +45,21 @@ The first playable version provides:
 - Movable/lockable frame
 - Debug output for testing Forever-specific API behavior
 
+## Optional install for broad quest coverage
+
+Install **[QuestieDB-Forever](https://github.com/Questie/QuestieDB/releases/latest)** alongside ForeverQuest (the `QuestieDB-Forever.zip` release asset), through WoWUp if available or by extracting the `QuestieDB` addon folder into WoW Forever's AddOns directory. You don't need the full Questie UI.
+
+Without QuestieDB, the addon retains its active quest tracker and small independently curated quest-location fallback, but **future quest discovery is unavailable**. QuestieDB's Forever dataset contains Classic-derived assumptions and launch revisions, and may miss altered quests, blocked availability, or new spawns. Install and update the Forever-specific data release, not a Vanilla release.
+
+This is a first-pass quest pickup planner, **not** a full 1–60 cross-zone leveling route. Full quest chain planning, objective clustering beyond the current quest log, multi-stop routing and turn-in optimization remain future work.
+
 ## Commands
 
 - `/fq unlock` - unlock the focus card so it can be moved
 - `/fq lock` - lock the card in place
 - `/fq auto` - return to automatic quest selection
+- `/fq plan` - list potential unaccepted nearby quests from QuestieDB
+- `/fq data` - check future quest database coverage/status
 - `/fq area` - list quests whose known objective points appear near your current focused objective
 - `/fq navigate` - tell Blizzard to supertrack the current focused quest
 - `/fq debug` - print useful quest/map/waypoint diagnostics
@@ -54,7 +79,7 @@ Restart WoW after installing a brand-new addon.
 
 ## Design direction
 
-The first pass of overlapping *areas* uses live client waypoints when available, then a small separately sourced Classic/Forever starter database; this is not full quest coverage. A contextual quest-item button, full map pickup/turn-in guidance, learned Forever-specific quest data, and improved route planning are still to be built. The goal is to gain the useful parts of large questing addons without turning the game screen into a questing dashboard.
+The current planner can look ahead to possible quest pickups using QuestieDB and resolve active objective positions with native waypoints or a small curated fallback. It cannot yet build a reliable multi-zone leveling itinerary, model all quest availability, or guarantee optimal pickup/turn-in decisions. Those are the highest-priority improvements. The goal is to gain the useful parts of large questing addons without turning the game screen into a questing dashboard.
 
 ## License / project policy
 
