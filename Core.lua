@@ -24,6 +24,7 @@ local state = {
     routeKey = nil,
     lastRouteSwitch = 0,
     manualChoice = nil,
+    nextZones = nil,
     focusScore = nil,
     lastFocusChange = 0,
     refreshElapsed = 0,
@@ -786,6 +787,17 @@ frame:SetScript("OnEnter", function(self)
             end
         end
     end
+    if state.nextZones and #state.nextZones > 0 and not state.pickup
+        and not FindQuest(state.focusQuestID) then
+        GameTooltip:AddLine("Possible nearby leveling zones:", 0.55, 0.84, 1.0)
+        for i = 1, math.min(3, #state.nextZones) do
+            local zone = state.nextZones[i]
+            GameTooltip:AddLine(zone.name .. " • " .. zone.possibleQuests
+                .. " possibly eligible quests", 0.8, 0.8, 0.8)
+        end
+        GameTooltip:AddLine("Not a travel route; verify quest availability.",
+            0.63, 0.63, 0.63, true)
+    end
     if state.routePlan and state.routePlan.stops and #state.routePlan.stops > 0
         and Route and Route.Describe then
         GameTooltip:AddLine("Suggested next stops (approx. map locations):", 0.53, 0.83, 1.0)
@@ -880,6 +892,7 @@ end
 RefreshFocus = function()
     CollectQuests()
     RefreshFutureQuests()
+    state.nextZones = nil
 
     local quest, manualPickup
     if ForeverQuestDB.mode == "MANUAL" then
@@ -952,11 +965,34 @@ RefreshFocus = function()
     end
 
     if not quest then
-        frame.title:SetText("No active quests")
-        frame.objective:SetText("Pick up a quest and ForeverQuest will focus it here.")
         frame.distance:SetText("")
         frame.group:Hide()
         ShowDirectionArrow(false)
+
+        local status = Planner and Planner:Status() or "No catalog"
+        if status:find("Scanning", 1, true) then
+            frame.title:SetText("Finding nearby quests...")
+            frame.objective:SetText("Checking the built-in Classic/Forever catalog")
+        else
+            local options
+            if Planner and Planner.GetNextZones then
+                local active = {}
+                for _, q in ipairs(state.quests) do active[q.questID] = true end
+                for id in pairs(IgnoredPickups()) do active[id] = true end
+                options = Planner:GetNextZones(GetBestMap(), UnitLevel("player"), active, 3)
+            end
+            state.nextZones = options
+            if options and options[1] then
+                frame.title:SetText("Consider: " .. options[1].name)
+                frame.title:SetTextColor(0.62, 0.87, 1.0)
+                frame.objective:SetText(options[1].possibleQuests
+                    .. " possible quests in a neighboring zone")
+            else
+                frame.title:SetText("No location-backed quest found")
+                frame.objective:SetText("Try /fq zones or check live quest NPCs")
+                frame.title:SetTextColor(0.9, 0.83, 0.52)
+            end
+        end
         UpdateTitleLayout()
         return
     end
@@ -1105,6 +1141,26 @@ SlashCmdList.FOREVERQUEST = function(message)
         Print(Planner and Planner:Status() or "Quest data provider unavailable.")
     elseif command == "route" then
         PrintRoute()
+    elseif command == "zones" then
+        if not Planner or not Planner.GetNextZones then
+            Print("Bundled zone advisor is unavailable.")
+        else
+            CollectQuests()
+            local active = {}
+            for _, q in ipairs(state.quests) do active[q.questID] = true end
+            for id in pairs(IgnoredPickups()) do active[id] = true end
+            local options = Planner:GetNextZones(
+                GetBestMap(), UnitLevel("player"), active, 3)
+            if #options == 0 then
+                Print("No nearby zones with verified eligible quest starters at this level.")
+            else
+                Print("Neighboring zones with possible quests (catalog estimates):")
+                for i = 1, math.min(3, #options) do
+                    Print(i .. ". " .. options[i].name .. " — "
+                        .. options[i].possibleQuests .. " possible quests")
+                end
+            end
+        end
     elseif command == "skip" then
         if state.pickup then
             local id, name = state.pickup.questID, state.pickup.name
@@ -1142,7 +1198,7 @@ SlashCmdList.FOREVERQUEST = function(message)
         frame:SetPoint(defaults.point, UIParent, defaults.relativePoint, defaults.x, defaults.y)
         Print("position reset")
     else
-        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq plan, /fq skip, /fq unskip, /fq data, /fq area, /fq navigate, /fq debug, /fq reset")
+        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq zones, /fq plan, /fq skip, /fq unskip, /fq data, /fq area, /fq navigate, /fq debug, /fq reset")
     end
 end
 
