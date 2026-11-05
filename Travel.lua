@@ -109,6 +109,24 @@ function Travel:DescribeHandoff(path, names)
         .. " (zone connections only)"
 end
 
+-- Client map layers (caves, interiors, different zones) are not the
+-- same coordinate plane. A direct arrow to another map is misleading.
+-- We never infer an exact entrance from an enemy spawn coordinate.
+function Travel:GetLayerCaution(fromMap,toMap)
+    if not fromMap or not toMap or fromMap==toMap then return nil end
+    if C_Map and type(C_Map.GetMapInfo)=="function" then
+        local okA,origin=pcall(C_Map.GetMapInfo,fromMap)
+        local okB,target=pcall(C_Map.GetMapInfo,toMap)
+        if okA and okB and type(origin)=="table"
+            and type(target)=="table" then
+            if origin.parentMapID==toMap or target.parentMapID==fromMap then
+                return "Different interior/map layer; use an entrance or exit."
+            end
+        end
+    end
+    return "Destination is in another map area; direct arrow paused."
+end
+
 -- Known flight-path names are learned from taxi-map visits when available.
 -- We never invent taxi coordinates or assume a given character can fly.
 function Travel:LearnFlightPaths(account)
