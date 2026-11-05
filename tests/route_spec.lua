@@ -166,6 +166,41 @@ local unknownVillage=route:Build({}, {
 equal(unknownVillage.totalLocations,2,
     "unknown givers are not assumed to be the same NPC across a village")
 
+-- Unknown quest giver IDs must not cause unrelated NPCs to collapse
+-- into one stop merely because the catalog rounded their coordinates.
+local ambiguousVillage=route:Build({}, {
+    {questID=460,name="Unknown scout",mapID=1413,x=.520,y=.300},
+    {questID=461,name="Known innkeeper",mapID=1413,x=.520,y=.300,
+        giverID=101,giverName="Innkeeper"},
+    {questID=462,name="Unknown merchant",mapID=1413,x=.520,y=.300},
+},1413,.52,.30,{level=14})
+equal(ambiguousVillage.totalLocations,3,
+    "unknown and known quest givers at identical coordinates remain distinct")
+local namedVillage=route:Build({}, {
+    {questID=463,name="Scout first",mapID=1413,x=.520,y=.300,
+        giverName="Scout",kind="NPC"},
+    {questID=464,name="Scout second",mapID=1413,x=.5205,y=.3005,
+        giverName="Scout",kind="NPC"},
+    {questID=465,name="Merchant task",mapID=1413,x=.520,y=.300,
+        giverName="Merchant",kind="NPC"},
+},1413,.52,.30,{level=14})
+equal(namedVillage.totalLocations,2,
+    "same explicitly named giver can combine while another named NPC stays separate")
+local namedCounts={}
+for _,stop in ipairs(namedVillage.stops) do
+    namedCounts[stop.giverName]=stop.pickupCount
+end
+equal(namedCounts["Scout"],2,"named scout offers form one pickup")
+equal(namedCounts["Merchant"],1,"merchant offer stays independent")
+local mixedKind=route:Build({}, {
+    {questID=466,name="NPC task",mapID=1413,x=.520,y=.300,
+        giverName="Scout",kind="NPC"},
+    {questID=467,name="Notice board task",mapID=1413,x=.520,y=.300,
+        giverName="Scout",kind="object"},
+},1413,.52,.30,{level=14})
+equal(mixedKind.totalLocations,2,
+    "same label on NPC and object must not merge unrelated quest starters")
+
 -- Once the first quest is accepted, the remaining quests still form a
 -- pickup stop. Grouping must not permanently discard their IDs.
 local afterAccept={hubQuests[2],hubQuests[3],hubQuests[4]}
