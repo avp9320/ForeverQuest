@@ -908,7 +908,50 @@ local function PrintRoute()
     Print("Suggested next stops (straight-line map estimates, not roads):")
     for i, stop in ipairs(plan.stops) do
         Print(tostring(i) .. ". " .. Route:Describe(stop))
+        -- Show which other actions may overlap at the same location. Players
+        -- can now see why the route favors an area, without extra map pins.
+        if stop.nearby and #stop.nearby > 0 then
+            local nearby, used = {}, {}
+            for _, other in ipairs(stop.nearby) do
+                local label = other.targetName or other.name
+                if label and not used[label] then
+                    used[label] = true
+                    nearby[#nearby + 1] = label
+                end
+                if #nearby >= 3 then break end
+            end
+            if #nearby > 0 then
+                Print("   Nearby tasks: " .. table.concat(nearby, ", "))
+            end
+        end
     end
+end
+
+local function ExplainFocus()
+    if ForeverQuestDB.mode == "MANUAL" then
+        Print("Manual choice: left-click to cycle stops; right-click for AUTO.")
+        return
+    end
+    local stop = state.routeStop
+    if not stop then
+        Print("No location-backed stop selected. /fq data checks the catalog; /fq zones suggests adjacent zones.")
+        return
+    end
+    local why
+    if stop.kind == "pickup" then
+        why = "Possible new quest pickup near your route (unverified database offer)"
+    elseif stop.kind == "turnin" then
+        why = "Completed quest and a useful turn-in stop along the route"
+    else
+        why = "Unfinished accepted quest objective with a known search area"
+    end
+    if (stop.overlapping or 0) > 0 then
+        why = why .. "; " .. stop.overlapping
+            .. " other tasks appear in the same area"
+    end
+    local confidence = stop.confidence or "unknown"
+    Print(why .. ". Location source: " .. confidence
+        .. ". /fq route lists alternatives.")
 end
 
 RefreshFocus = function()
@@ -950,6 +993,10 @@ RefreshFocus = function()
                             if point.goalKey == choice.goalKey then
                                 manualStop = choice
                                 manualStop.x, manualStop.y = point.x, point.y
+                                manualStop.mapID = point.mapID
+                                manualStop.targetName = point.targetName
+                                manualStop.stepLabel = point.stepLabel
+                                manualStop.confidence = point.confidence
                                 break
                             end
                         end
@@ -1235,6 +1282,8 @@ SlashCmdList.FOREVERQUEST = function(message)
         Print(Planner and Planner:Status() or "Quest data provider unavailable.")
     elseif command == "route" then
         PrintRoute()
+    elseif command == "why" then
+        ExplainFocus()
     elseif command == "zones" then
         if not Planner or not Planner.GetNextZones then
             Print("Bundled zone advisor is unavailable.")
@@ -1292,7 +1341,7 @@ SlashCmdList.FOREVERQUEST = function(message)
         frame:SetPoint(defaults.point, UIParent, defaults.relativePoint, defaults.x, defaults.y)
         Print("position reset")
     else
-        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq zones, /fq plan, /fq skip, /fq unskip, /fq data, /fq area, /fq navigate, /fq debug, /fq reset")
+        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq why, /fq zones, /fq plan, /fq skip, /fq unskip, /fq data, /fq area, /fq navigate, /fq debug, /fq reset")
     end
 end
 
