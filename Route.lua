@@ -115,6 +115,27 @@ local function routeScore(candidate, x, y, all, used, options)
     -- Favor productive local groups over a distant pile of speculative
     -- quest pickups, but never treat map distance as real terrain distance.
     local score = value * 0.018 + clustered * 0.052 - dist * 0.85
+    -- In the Barrens, select a level-appropriate quest hub before treating
+    -- an isolated nearby starter as the next destination. These are broad
+    -- hub regions, not claims about individual quest giver coordinates.
+    -- Never override quest safety or the pickup/objective/turn-in phases.
+    if candidate.kind == "pickup" and candidate.mapID == 1413 then
+        local level = tonumber(options.level)
+        if level then
+            local hubs = {
+                {min=10, max=19, x=.52, y=.30, radius=.12}, -- Crossroads
+                {min=13, max=22, x=.62, y=.38, radius=.085}, -- Ratchet
+                {min=18, max=27, x=.45, y=.59, radius=.10}, -- Camp Taurajo
+            }
+            for _, hub in ipairs(hubs) do
+                if level >= hub.min and level <= hub.max
+                    and distance(candidate.x,candidate.y,hub.x,hub.y) <= hub.radius then
+                    score = score + 0.09
+                    break
+                end
+            end
+        end
+    end
     if candidate.kind == "pickup" and dist < 0.023 then score = score + 0.045 end
     if candidate.kind == "pickup" and (candidate.pickupCount or 1) > 1 then
         -- One trip to this quest giver may unlock several objectives.
