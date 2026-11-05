@@ -33,6 +33,7 @@ local function append(all, seen, kind, id, name, mapID, x, y,
         stepLabel = goal and goal.stepLabel,
         sourceKind = goal and goal.kind,
         waypointSource = goal and goal.waypointSource,
+        giverID = kind == "pickup" and goal and goal.giverID or nil,
     }
     seen[key] = true
     all[#all + 1] = stop
@@ -42,6 +43,46 @@ end
 -- a turn-in next to the player still wins over a long cross-zone run.
 local VALUE = { objective = 12, pickup = 10, turnin = 8 }
 local CLUSTER = 0.025
+-- Multiple quests offered by a single NPC are ONE physical stop. Merge
+-- identical starters or extremely close NPCs so the five-stop plan is not
+-- wasted on a list of quests all offered at the same doorway.
+local PICKUP_HUB = 0.005
+
+local function groupPickupHubs(candidates)
+    local grouped = {mapID = candidates.mapID}
+    for _, candidate in ipairs(candidates) do
+        local hub = nil
+        if candidate.kind == "pickup" then
+            for _, existing in ipairs(grouped) do
+                if existing.kind == "pickup"
+                    and existing.mapID == candidate.mapID then
+                    local close = distance(existing.x, existing.y,
+                        candidate.x, candidate.y)
+                    if (existing.giverID and candidate.giverID
+                            and existing.giverID == candidate.giverID
+                            and close <= 0.015)
+                        or close <= PICKUP_HUB then
+                        hub = existing
+                        break
+                    end
+                end
+            end
+        end
+        if hub then
+            hub.pickupCount = hub.pickupCount + 1
+            hub.pickupNames[#hub.pickupNames + 1] = candidate.name
+            hub.pickupIDs[#hub.pickupIDs + 1] = candidate.questID
+        else
+            if candidate.kind == "pickup" then
+                candidate.pickupCount = 1
+                candidate.pickupNames = {candidate.name}
+                candidate.pickupIDs = {candidate.questID}
+            end
+            grouped[#grouped + 1] = candidate
+        end
+    end
+    return grouped
+end
 
 local function nearCount(stop, others, used)
     local n = 0
@@ -65,6 +106,10 @@ local function routeScore(candidate, x, y, all, used)
     -- quest pickups, but never treat map distance as real terrain distance.
     local score = value * 0.018 + clustered * 0.024 - dist * 1.3
     if candidate.kind == "pickup" and dist < 0.023 then score = score + 0.045 end
+    if candidate.kind == "pickup" and (candidate.pickupCount or 1) > 1 then
+        -- One trip to this quest giver may unlock several objectives.
+        score = score + math.min(3, candidate.pickupCount - 1) * 0.012
+    end
     if candidate.kind == "turnin" and dist < 0.024 then score = score + 0.04 end
     -- A client-supplied location deserves slightly more trust than an
     -- approximate inherited Classic entry. The bias stays small enough
@@ -123,12 +168,14 @@ function Route:Build(quests, pickups, mapID, playerX, playerY)
             end
             if activeCount == 0 or playerDistance <= 0.055 or alongRoute then
                 append(all, seen, "pickup", q.questID, q.name,
-                    q.mapID, q.x, q.y, q.confidence, q.area)
+                    q.mapID, q.x, q.y, q.confidence, q.area, q)
             end
         end
     end
 
     plan.totalCandidates = #all
+    all = groupPickupHubs(all)
+    plan.totalLocations = #all
     local x, y = playerX, playerY
     local used = {}
     for step = 1, math.min(5, #all) do
@@ -173,6 +220,10 @@ function Route:Describe(stop)
         or stop.kind == "turnin" and "TURN IN" or "DO"
     local extra = stop.overlapping > 0 and (" • +" .. stop.overlapping .. " nearby") or ""
     local summary = stop.name or "Quest"
+    if stop.kind == "pickup" and (stop.pickupCount or 1) > 1 then
+        summary = string.format("%d possible quests here (e.g. %s)",
+            stop.pickupCount, summary)
+    end
     if stop.kind == "objective" and stop.targetName
         and stop.targetName ~= "" then
         summary = summary .. ": " .. stop.targetName
