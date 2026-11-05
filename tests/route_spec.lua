@@ -28,7 +28,7 @@ local turnin = {
 }
 path = route:Build({turnin[1], active[1]}, {}, 1411, .4, .6)
 equal(path.stops[1].kind, "turnin", "nearby turn-in")
-path = route:Build({active}, {{questID=1,name="Duplicate",mapID=1411,x=.42,y=.61}},1411,.4,.6)
+path = route:Build({active[1]}, {{questID=1,name="Duplicate",mapID=1411,x=.42,y=.61}},1411,.4,.6)
 equal(#path.stops,2,"distinct kinds remain distinct")
 path = route:Build(active, nearby, 1412, .4, .6)
 equal(#path.stops,0,"other-zone coordinates excluded")
