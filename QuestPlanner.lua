@@ -137,7 +137,7 @@ local function eligible(lib, id, level, active, raceBit, classBit)
     return prereqs(q, id, active)
 end
 
-local function starter(lib, id, mapID, maps)
+local function starter(lib, id, mapID, maps, playerX, playerY)
     local startedBy = get(lib.Quest, id, "startedBy")
     if type(startedBy) ~= "table" then return nil end
     local best, bestSquared
@@ -157,7 +157,8 @@ local function starter(lib, id, mapID, maps)
                                 if type(x) == "number" and type(y) == "number"
                                     and x >= 0 and x <= 100 and y >= 0 and y <= 100 then
                                     local normalizedX, normalizedY = x / 100, y / 100
-                                    local distance = normalizedX * normalizedX + normalizedY * normalizedY
+                                    local dx, dy = normalizedX - playerX, normalizedY - playerY
+                                    local distance = dx * dx + dy * dy
                                     if not bestSquared or distance < bestSquared then
                                         bestSquared = distance
                                         best = {
@@ -236,6 +237,12 @@ function Planner:Scan(mapID, level, active, force)
         and lib.Enum.raceMaskById[raceID]
     local classBit = type(classID) == "number" and (2 ^ (classID - 1)) or nil
     local maps = zoneMap(lib)
+    local playerX, playerY = playerXY(mapID)
+    if not playerX then
+        cache.scanning = false
+        cache.status = "Player map position unavailable"
+        return
+    end
     local generation = cache.generation
     local index, found = 1, {}
     local function scanBatch()
@@ -249,7 +256,7 @@ function Planner:Scan(mapID, level, active, force)
                 if not eligible(lib, id, level, active, raceBit, classBit) then return nil end
                 local name = get(lib.Quest, id, "name")
                 if type(name) ~= "string" or name == "" then return nil end
-                local start = starter(lib, id, mapID, maps)
+                local start = starter(lib, id, mapID, maps, playerX, playerY)
                 if start then
                     start.name = name
                     start.source = "QuestieDB Forever baseline"
