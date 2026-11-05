@@ -45,7 +45,7 @@ end
 -- Higher value favors unfinished objectives and opportunistic pickups, but
 -- a turn-in next to the player still wins over a long cross-zone run.
 local VALUE = { objective = 12, pickup = 10, turnin = 8 }
-local CLUSTER = 0.025
+local CLUSTER = 0.035
 -- Multiple quests offered by a single NPC are ONE physical stop. Merge
 -- identical starters or extremely close NPCs so the five-stop plan is not
 -- wasted on a list of quests all offered at the same doorway.
@@ -107,7 +107,7 @@ local function routeScore(candidate, x, y, all, used, options)
     local clustered = math.min(3, nearCount(candidate, all, used))
     -- Favor productive local groups over a distant pile of speculative
     -- quest pickups, but never treat map distance as real terrain distance.
-    local score = value * 0.018 + clustered * 0.024 - dist * 1.3
+    local score = value * 0.018 + clustered * 0.052 - dist * 0.85
     if candidate.kind == "pickup" and dist < 0.023 then score = score + 0.045 end
     if candidate.kind == "pickup" and (candidate.pickupCount or 1) > 1 then
         -- One trip to this quest giver may unlock several objectives.
@@ -192,6 +192,21 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
     plan.totalCandidates = #all
     all = groupPickupHubs(all)
     plan.totalLocations = #all
+
+    -- Keep the selected route stop until its work is completed or it
+    -- disappears from the eligible candidates. Avoid proximity flip-flops.
+    local pinned
+    if type(options.preferredKey) == "string" then
+        for _, candidate in ipairs(all) do
+            if candidate.key == options.preferredKey then
+                local strategy = _G.ForeverQuestStrategy
+                local blocked = strategy and strategy.ShouldAvoidAuto
+                    and strategy:ShouldAvoidAuto(candidate, options)
+                if not blocked then pinned = candidate end
+                break
+            end
+        end
+    end
     local x, y = playerX, playerY
     local used = {}
     for step = 1, math.min(5, #all) do
@@ -199,6 +214,9 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
         for _, candidate in ipairs(all) do
             if not used[candidate.key] then
                 local score, dist, clustered = routeScore(candidate, x, y, all, used, options)
+                if step == 1 and candidate == pinned then
+                    score = score + 100
+                end
                 -- Small stable tie-break avoids nondeterministic NPC spawn order.
                 score = score - (tonumber(candidate.questID) or 0) * 0.000000001
                 if not bestScore or score > bestScore then
