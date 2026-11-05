@@ -17,4 +17,24 @@ local n=0
 for _ in pairs(db.AreaToMap) do n=n+1 end
 assert(n>200,"too few area mapping entries")
 assert(db.Quest.Get(99999999,"name")==nil,"unknown quest should not exist")
-print(string.format("Standalone catalog tests passed: %d quests, %d areas",#ids,n))
+-- Run the actual planner against the bundled data, not a separately
+-- installed addon. The mock character is an Orc warrior in Durotar.
+C_Map = {
+    GetPlayerMapPosition = function(id, unit)
+        return {GetXY = function() return 0.43, 0.68 end}
+    end,
+}
+C_Timer = { After = function(_, action) action() end }
+C_QuestLog = { IsQuestFlaggedCompleted = function(id) return false end }
+UnitRace = function() return "Orc", "Orc", 2 end
+UnitClass = function() return "Warrior", "WARRIOR", 1 end
+dofile("QuestPlanner.lua")
+local planner = _G.ForeverQuestPlanner
+assert(planner:Available(), "standalone planner not connected")
+planner:Scan(1411, 5, {})
+local options = planner:GetNearby(1411, 15)
+assert(#options > 0, "no starter quests found in Durotar from bundled data")
+assert(options[1].name and options[1].mapID == 1411,
+    "bad candidate quest mapping")
+assert(not _G.LibQuestieDB, "external QuestieDB runtime must not be loaded")
+print(string.format("Standalone catalog integration passed: %d quests, %d areas, %d nearby candidates",#ids,n,#options))
