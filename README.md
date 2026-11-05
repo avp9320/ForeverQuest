@@ -7,6 +7,14 @@ overlap, when to turn in, and where to quest afterward. It keeps the interface
 small: one two-line objective card, with optional hover details and a secure
 quest-item button. Nothing is continuously posted to chat.
 
+## v1.0.4 — Blizzard quest objective tracking, no map pins
+
+- ForeverQuest no longer creates, replaces, or clears user map waypoints, either automatically or by Shift-click.
+- For accepted quests, AUTO supertracks the selected quest using Blizzard's native `C_SuperTrack.SetSuperTrackedQuestID` API when present.
+- Shift-click or `/fq navigate` explicitly tracks the selected accepted quest in Blizzard's objective tracking. Provisional unaccepted pickups remain compact hints until accepted.
+- The compact card keeps its directional arrow and estimated distances, but never creates an extra map pin.
+- Removed `/fq pin auto` and `/fq pin manual` commands; old saved pin settings are ignored.
+
 ## v1.0.3 — route commitment and quest circuits
 
 - AUTO keeps the selected destination until the quest work finishes, the objective disappears, or the destination is no longer eligible. Walking near another quest no longer constantly reshuffles the route.
@@ -26,8 +34,8 @@ quest-item button. Nothing is continuously posted to chat.
 - When a source-backed landmark is known, it identifies that too (for example, **Furl Scornbrow — Razor Hill watchtower, upper level** for *Carry Your Weight*).
 - The upper-right indicator now shows an eight-way compass bearing and **approximate straight-line yards** when the client exposes map world size; otherwise it shows the direction with map coordinates.
 - A larger, higher-contrast rotating arrow points toward the target as the character moves.
-- In AUTO, ForeverQuest places a Blizzard map waypoint for the selected destination only when doing so won't replace a map pin you placed yourself. No extra map addon is required.
-- Shift-left-click the card to explicitly mark a destination; `/fq pin manual` turns off automatic pins, and `/fq pin auto` restores them.
+- In AUTO, ForeverQuest tracks accepted quests through Blizzard's own quest tracker without creating map pins.
+- Shift-left-click the card to explicitly track the selected accepted quest in Blizzard's objective tracker.
 - Locations remain **search areas**, and straight-line yardage is **not walking distance**. Caves, floors and obstacles can still require a detour.
 
 ## Version 1.0 — core leveling assistant
@@ -72,8 +80,7 @@ quest-item button. Nothing is continuously posted to chat.
   right-click resumes AUTO.
 - The displayed objective, direction and explicit waypoint follow the
   **selected individual target**, even when several tasks share a quest.
-- Shift-left-click requests a Blizzard map waypoint; waypoints are not
-  spammed onto the map automatically.
+- Shift-left-click requests Blizzard's official supertracking for an accepted quest; no map pins are written.
 - A **small special quest-item button** appears when the native quest-log API
   reports a usable special item. It uses a secure action button and never
   changes protected attributes during combat.
@@ -110,10 +117,8 @@ source-code ZIP: the generated `CatalogData.lua` is included in the
 
 - **Left click / mouse wheel** — cycle current planned actions.
 - **Right click** — resume automatic route selection.
-- **Shift + left click** — place an explicit Blizzard map pin for the selected
-  quest/pickup; this may replace a pin you set manually.
-- **AUTO map waypoints** — enabled by default for destinations when the client
-  supports them; won't overwrite a personal map pin.
+- **Shift + left click** — supertrack the selected accepted quest in Blizzard's official quest tracker.
+- **AUTO official quest tracking** — selects the current accepted quest as Blizzard's supertracked quest, when supported.
 - **Hover** — explanation, related objectives and short route preview.
 - **Quest-item icon** — use the relevant special quest item if supplied
   by WoW's quest log.
@@ -121,8 +126,6 @@ source-code ZIP: the generated `CatalogData.lua` is included in the
 ## Slash commands
 
 - `/fq` — help.
-- `/fq pin auto` / `/fq pin manual` — enable or disable automatic
-  Blizzard map pins without affecting manual Shift-click navigation.
 - `/fq route` — print up to five approximate same-map stops and nearby tasks.
 - `/fq why` — explain why AUTO chose this action.
 - `/fq zones` — show connected zones with plausible quests and handoff notes.
