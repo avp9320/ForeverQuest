@@ -10,6 +10,7 @@ CatalogData.lua
 CatalogRuntime.lua
 Travel.lua
 Knowledge.lua
+Chains.lua
 QuestPlanner.lua
 Strategy.lua
 Route.lua
