@@ -275,7 +275,9 @@ function Planner:GetActivePositions(questID, complete, mapID, statuses, maxCount
     if not px then return {} end
     local maps = zoneMap(lib)
     local groups = get(lib.Quest, questID, complete and "finishedBy" or "objectives")
-    if type(groups) ~= "table" then return {} end
+    -- Pure exploration quests can have a trigger location but no NPC/item
+    -- objective table at all.
+    if type(groups) ~= "table" then groups = {} end
 
     local result = {}
     local function bestLocation(ids, db, kind)
@@ -353,6 +355,55 @@ function Planner:GetActivePositions(questID, complete, mapID, statuses, maxCount
                     add("item:" .. itemID, label, text, best)
                 end
             end
+        end
+    end
+
+    -- Exploration / visit-location quests often lack kill and item goals.
+    -- Only use their spatial trigger once no other known objective remains,
+    -- AND when the live quest log doesn't report unfinished tasks we lack
+    -- coordinates for. Never send the player to a completion trigger early.
+    if #result == 0 then
+        local unfinishedLiveGoal = false
+        for _, objective in ipairs(type(statuses) == "table" and statuses or {}) do
+            if type(objective) == "table"
+                and not (objective.finished == true or objective.isFinished == true) then
+                local required, fulfilled = tonumber(objective.numRequired),
+                    tonumber(objective.numFulfilled)
+                if not required or not fulfilled or fulfilled < required then
+                    unfinishedLiveGoal = true
+                    break
+                end
+            end
+        end
+        if not unfinishedLiveGoal then
+            local locations = get(lib.Quest, questID, "triggerPoints")
+            local best, bestD
+            if type(locations) == "table" then
+                for areaID, points in pairs(locations) do
+                    if (maps[areaID] == mapID or areaID == mapID)
+                        and type(points) == "table" then
+                        for _, xy in ipairs(points) do
+                            local x, y = xy[1], xy[2]
+                            if type(x) == "number" and type(y) == "number"
+                                and x >= 0 and x <= 100 and y >= 0 and y <= 100 then
+                                x, y = x / 100, y / 100
+                                local dx, dy = x - px, y - py
+                                local d = dx * dx + dy * dy
+                                if not bestD or d < bestD then
+                                    bestD = d
+                                    best = {
+                                        x = x, y = y, mapID = mapID,
+                                        kind = "exploration",
+                                        entityName = "Quest location",
+                                        confidence = "bundled-catalog-provisional",
+                                    }
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            add("trigger", "Quest location", "Explore quest area", best)
         end
     end
 
