@@ -73,6 +73,32 @@ for id, row in pairs(qdb) do
                 record[key] = val
             end
         end
+        -- Some quests finish by discovering a location rather than looting
+        -- or killing something. Keep only approximate trigger coordinates,
+        -- never the external quest description or guide wording.
+        local trigger = field(row, raw.questKeys, "triggerEnd")
+        if valid(trigger) and valid(trigger[2]) then
+            local areaPoints = {}
+            for area, points in pairs(trigger[2]) do
+                if maps[area] and valid(points) then
+                    local output = {}
+                    for i = 1, math.min(#points, 4) do
+                        local xy = points[i]
+                        if valid(xy) and type(xy[1]) == "number"
+                            and type(xy[2]) == "number"
+                            and xy[1] >= 0 and xy[1] <= 100
+                            and xy[2] >= 0 and xy[2] <= 100 then
+                            output[#output + 1] = {
+                                math.floor(xy[1] * 100 + 0.5) / 100,
+                                math.floor(xy[2] * 100 + 0.5) / 100,
+                            }
+                        end
+                    end
+                    if #output > 0 then areaPoints[area] = output end
+                end
+            end
+            if next(areaPoints) then record.triggerPoints = areaPoints end
+        end
         -- Avoid distributing quest prose. Objectives use only IDs, not text.
         local objective = field(row, raw.questKeys, "objectives")
         if valid(objective) then
@@ -222,8 +248,12 @@ writeMap("AreaToMap",maps)
 f:write("}\n")
 f:close()
 local function count(t) local n=0;for _ in pairs(t) do n=n+1 end;return n end
-print(string.format("FOREVER_CATALOG quests=%d npc=%d objects=%d items=%d areas=%d",
-    count(quests),count(npcs),count(objects),count(items),count(maps)))
+local triggers = 0
+for _, quest in pairs(quests) do
+    if quest.triggerPoints then triggers = triggers + 1 end
+end
+print(string.format("FOREVER_CATALOG quests=%d npc=%d objects=%d items=%d areas=%d triggers=%d",
+    count(quests),count(npcs),count(objects),count(items),count(maps),triggers))
 assert(count(quests) > 3000, "insufficient quest coverage")
 assert(count(npcs) > 1000, "insufficient NPC coverage")
 assert(count(maps) > 200, "insufficient map coverage")
