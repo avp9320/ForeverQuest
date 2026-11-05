@@ -296,6 +296,13 @@ function Planner:GetActivePositions(questID, complete, mapID, statuses, maxCount
     end
     local function add(key, label, stepLabel, location)
         if not location then return end
+        local Knowledge = _G.ForeverQuestKnowledge
+        local learned = Knowledge and Knowledge:Get(
+            _G.ForeverQuestDB,"objective",questID,key)
+        if learned and learned.mapID==mapID then
+            location.x,location.y=learned.x,learned.y
+            location.confidence="account-observed"
+        end
         location.goalKey = key
         location.targetName = label
         location.stepLabel = stepLabel
