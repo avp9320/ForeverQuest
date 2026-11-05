@@ -433,7 +433,7 @@ local function NavigateToFocus()
 
     -- For a curated objective, the game has no usable quest waypoint.
     -- Set a normal Blizzard map waypoint on explicit user request only.
-    if quest.waypointSource == "curated" and quest.waypointMap
+    if (quest.waypointSource == "curated" or quest.waypointSource == "database") and quest.waypointMap
         and quest.waypointX and quest.waypointY
         and C_Map and type(C_Map.SetUserWaypoint) == "function"
         and UiMapPoint and type(UiMapPoint.CreateFromCoordinates) == "function" then
@@ -454,8 +454,9 @@ local function NavigateToFocus()
                 end
                 Print(string.format("Approximate %s waypoint: %.1f, %.1f (%s).",
                     quest.title, quest.waypointX * 100, quest.waypointY * 100,
-                    quest.waypointConfidence == "classic-fallback"
-                        and "Classic fallback" or "Forever guide"))
+                    quest.waypointSource == "database" and "QuestieDB estimate"
+                        or (quest.waypointConfidence == "classic-fallback"
+                            and "Classic fallback" or "Forever guide")))
                 return
             end
         end
@@ -730,13 +731,26 @@ frame:SetScript("OnEnter", function(self)
         if quest.waypointText then
             GameTooltip:AddLine("Next step: " .. quest.waypointText, 0.65, 0.90, 1.0, true)
         end
-        if quest.waypointSource == "curated" then
+        if (quest.waypointSource == "curated" or quest.waypointSource == "database")
+            and quest.waypointX and quest.waypointY then
             GameTooltip:AddLine(string.format("Approx. location: %.1f, %.1f (%s)",
                 quest.waypointX * 100, quest.waypointY * 100,
                 quest.waypointArea or "search area"), 0.7, 0.85, 1, true)
-            GameTooltip:AddLine(quest.waypointConfidence == "classic-fallback"
-                and "Unverified Classic location; Forever may differ"
-                or "Forever beta guide location; verify in game", 0.65, 0.65, 0.65, true)
+            local confidenceNote = quest.waypointSource == "database"
+                and "QuestieDB estimate: Classic/Forever, unverified in client"
+                or (quest.waypointConfidence == "classic-fallback"
+                    and "Unverified Classic location; Forever may differ"
+                    or "Forever beta guide location; verify in game")
+            GameTooltip:AddLine(confidenceNote, 0.65, 0.65, 0.65, true)
+        end
+        if Planner and Planner.GetChainPreview then
+            local followups = Planner:GetChainPreview(quest.questID, 2)
+            if #followups > 0 then
+                GameTooltip:AddLine("Potential next quests after turn-in:", 0.73, 0.80, 0.95)
+                for _, nextQuest in ipairs(followups) do
+                    GameTooltip:AddLine("  " .. nextQuest.name, 0.75, 0.75, 0.75)
+                end
+            end
         end
         local area = GetAreaQuests(quest)
         if #area > 1 then
@@ -899,7 +913,8 @@ local function RefreshFocus()
     frame.objective:SetText(objectiveText)
     -- Avoid presenting an unrelated quest-log distance as distance to our
     -- approximate objective; show map coordinates instead when using fallback.
-    if quest.waypointSource == "curated" and quest.waypointX then
+    if (quest.waypointSource == "curated" or quest.waypointSource == "database")
+        and quest.waypointX then
         frame.distance:SetText(string.format("~%.0f,%.0f",
             quest.waypointX * 100, quest.waypointY * 100))
     else
