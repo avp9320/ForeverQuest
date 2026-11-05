@@ -15,6 +15,7 @@ QuestPlanner.lua
 Strategy.lua
 Route.lua
 QuestItems.lua
+Navigation.lua
 Core.lua
 Theme.lua
 Debug.lua
