@@ -66,6 +66,7 @@ jobs:
         run: |
           for f in *.lua tests/*.lua tools/*.lua; do luac5.1 -p "$f"; done
           lua5.1 tests/route_spec.lua
+          lua5.1 tests/hints_spec.lua
           lua5.1 tests/core_smoke.lua
           lua5.1 tests/catalog_smoke.lua
           lua5.1 tests/roadmap_spec.lua
