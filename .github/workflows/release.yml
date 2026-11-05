@@ -68,6 +68,7 @@ jobs:
           lua5.1 tests/route_spec.lua
           lua5.1 tests/core_smoke.lua
           lua5.1 tests/catalog_smoke.lua
+          lua5.1 tests/roadmap_spec.lua
 
       - name: Check whether this version already exists
         id: exists
@@ -106,6 +107,10 @@ jobs:
             ForeverQuest/CatalogRuntime.lua \
             ForeverQuest/QuestPlanner.lua \
             ForeverQuest/Route.lua \
+            ForeverQuest/Travel.lua \
+            ForeverQuest/Knowledge.lua \
+            ForeverQuest/Strategy.lua \
+            ForeverQuest/QuestItems.lua \
             ForeverQuest/ThirdPartyLicenses/QuestieDB-LICENSE.md
           do
             unzip -Z1 "$ZIP" | grep -Fxq "$required"
