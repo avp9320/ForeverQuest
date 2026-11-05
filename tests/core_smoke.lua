@@ -182,4 +182,29 @@ assert(card.distance:GetText()=="30 yd",
     "far-away client waypoint is retained over unverified database points")
 C_QuestLog.GetNextWaypointForMap=nil
 
+-- A cluster of quest starters should take one card/route stop, not fill all
+-- five slots with repeated coordinates. Skipping the leading false-positive
+-- should still reveal the other quest at that hub.
+log={}
+p.GetNearby=function()
+    local ignored=ForeverQuestDB.ignoredByCharacter
+        and ForeverQuestDB.ignoredByCharacter["Player-test-1"] or {}
+    local all={}
+    if not ignored[601] then
+        all[#all+1]={questID=601,mapID=1411,x=.401,y=.401,
+            name="First Hub Quest",giverID=900,kind="NPC",
+            confidence="provisional"}
+    end
+    all[#all+1]={questID=602,mapID=1411,x=.402,y=.401,
+        name="Second Hub Quest",giverID=900,kind="NPC",
+        confidence="provisional"}
+    return all
+end
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+assert(card.objective:GetText()=="2 possible quests at this stop",
+    "quest giver hub shows combined pickup count")
+SlashCmdList.FOREVERQUEST("skip")
+assert(card.title:GetText()=="Pick up: Second Hub Quest",
+    "skip first quest reveals other pickup without leaving hub")
+
 print("ForeverQuest Core mock game/UI smoke test passed")
