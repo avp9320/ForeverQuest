@@ -804,7 +804,16 @@ frame:SetScript("OnEnter", function(self)
         GameTooltip:AddLine("Possible new quest: " .. state.pickup.name, 0.45, 0.95, 0.56, true)
         GameTooltip:AddLine(string.format("Quest giver ~%.1f, %.1f (%s)",
             state.pickup.x * 100, state.pickup.y * 100, state.pickup.kind), 0.85, 0.85, 0.85)
-        GameTooltip:AddLine("Classic/Forever database prediction; offer not confirmed.",
+        if (state.pickup.pickupCount or 1) > 1
+            and type(state.pickup.pickupNames) == "table" then
+            GameTooltip:AddLine("Other possible quests at this stop:",
+                0.63, 0.90, 0.69)
+            for i = 2, math.min(5, #state.pickup.pickupNames) do
+                GameTooltip:AddLine("  " .. state.pickup.pickupNames[i],
+                    0.82, 0.82, 0.82)
+            end
+        end
+        GameTooltip:AddLine("Classic/Forever database prediction; offers not confirmed.",
             0.75, 0.69, 0.45, true)
     end
     local quest = FindQuest(state.focusQuestID)
@@ -984,7 +993,11 @@ local function ExplainFocus()
     end
     local why
     if stop.kind == "pickup" then
-        why = "Possible new quest pickup near your route (unverified database offer)"
+        if (stop.pickupCount or 1) > 1 then
+            why = stop.pickupCount .. " possible quests from nearby starters at one stop (unverified offers)"
+        else
+            why = "Possible new quest pickup near your route (unverified database offer)"
+        end
     elseif stop.kind == "turnin" then
         why = "Completed quest and a useful turn-in stop along the route"
     else
@@ -1056,6 +1069,8 @@ RefreshFocus = function()
                         x = manualStop.x, y = manualStop.y, mapID = manualStop.mapID,
                         confidence = manualStop.confidence,
                         kind = "quest starter", distance = manualStop.distance,
+                        pickupCount = manualStop.pickupCount,
+                        pickupNames = manualStop.pickupNames,
                     }
                 else
                     quest = FindQuest(manualStop.questID)
@@ -1091,7 +1106,8 @@ RefreshFocus = function()
                     questID = stop.questID, name = stop.name,
                     x = stop.x, y = stop.y, mapID = stop.mapID,
                     confidence = stop.confidence, kind = "quest starter",
-                    distance = stop.distance,
+                    distance = stop.distance, pickupCount = stop.pickupCount,
+                    pickupNames = stop.pickupNames,
                 }
             else
                 quest = FindQuest(stop.questID) or quest
@@ -1120,7 +1136,12 @@ RefreshFocus = function()
         local pickup = state.pickup
         frame.title:SetText("Pick up: " .. pickup.name)
         frame.title:SetTextColor(0.48, 0.95, 0.57)
-        frame.objective:SetText("Possible new quest (" .. pickup.kind .. ")")
+        if (pickup.pickupCount or 1) > 1 then
+            frame.objective:SetText(pickup.pickupCount
+                .. " possible quests at this stop")
+        else
+            frame.objective:SetText("Possible new quest (" .. pickup.kind .. ")")
+        end
         frame.distance:SetText(string.format("~%.0f,%.0f",
             pickup.x * 100, pickup.y * 100))
         local overlap = state.routeStop and state.routeStop.overlapping or 0
