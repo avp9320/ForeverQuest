@@ -19,6 +19,12 @@ assert(ashenvale,"Ashenvale reached via Barrens")
 eq(ashenvale.hops,2,"two-hop route")
 eq(ashenvale.path[2],1413,"handoff via Barrens")
 assert(not travel:GetHandoff(1411,1429),"cannot walk between continents")
+C_Map={GetMapInfo=function(id)
+    return id==999 and {parentMapID=1411} or {parentMapID=0}
+end}
+assert(travel:GetLayerCaution(1411,999):find("interior",1,true),
+    "different map layer requires an entrance, not a straight arrow")
+eq(travel:GetLayerCaution(1411,1411),nil,"same-map arrow remains safe")
 assert(travel:DescribeHandoff(ashenvale,{[1413]="Barrens",[1440]="Ashenvale"})
     :find("Via Barrens",1,true),"honest zone-transition hint")
 
@@ -64,6 +70,13 @@ eq(learned.x,.431,"remembered coordinates")
 local counts=knowledge:Counts(account)
 eq(counts.pickup,1,"pickup count")
 eq(counts.turnin,1,"turn-in count")
+assert(not knowledge:ObserveProgress(account,101,"enemy:1",0,1411,.4,.6),
+    "initial objective reading only establishes a baseline")
+assert(knowledge:ObserveProgress(account,101,"enemy:1",1,1411,.44,.64),
+    "progress increment learns a source position")
+eq(knowledge:Get(account,"objective",101,"enemy:1").x,.44,
+    "account objective coordinates learned")
+eq(knowledge:Counts(account).objective,1,"learned objective count")
 assert(not knowledge:Observe(account,"pickup",1,1411,1.5,.6),
     "reject invalid map positions")
 knowledge:Clear(account)
