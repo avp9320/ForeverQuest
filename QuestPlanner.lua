@@ -551,7 +551,10 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
         .. ":" .. tostring(UnitClass and select(3, UnitClass("player")) or "?")
     if zonesMemo.key == key then return zonesMemo.options end
 
-    local eligibleZones, travelHints = {}, {}
+    -- Count quest opportunities, but rank zones by level-appropriate work.
+    -- A low-level zone with dozens of trivial quests must not crowd out
+    -- a zone with fewer useful quests at the player's current level.
+    local eligibleZones, travelHints, relevantZones = {}, {}, {}
     if reachable then
         for _, info in ipairs(reachable) do
             eligibleZones[info.mapID] = 0
@@ -598,8 +601,29 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
                     end
                 end
             end
+            local questLevel = tonumber(get(lib.Quest, id, "questLevel"))
+            -- The bundled catalog is provisional; unknown quest levels
+            -- remain possible but receive less weight than known matches.
+            local weight = 0.4
+            if questLevel and questLevel > 0 then
+                local gap = level - questLevel
+                if gap >= 0 and gap <= 5 then
+                    weight = 1
+                elseif gap <= 10 and gap > 5 then
+                    weight = 0.6
+                elseif gap > 10 then
+                    weight = 0.15
+                elseif gap < 0 then
+                    -- Quests above character level are never automatically
+                    -- recommended, even if the requiredLevel permits them.
+                    weight = 0
+                end
+            end
             for dest in pairs(seenZones) do
-                eligibleZones[dest] = eligibleZones[dest] + 1
+                if weight > 0 then
+                    eligibleZones[dest] = eligibleZones[dest] + 1
+                    relevantZones[dest] = (relevantZones[dest] or 0) + weight
+                end
             end
         end
     end
@@ -618,12 +642,13 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
             local hops = hint.hops or 1
             options[#options+1] = {
                 mapID=id, name=name, possibleQuests=count,
+                relevantScore=relevantZones[id] or 0,
                 hops=hops, via=hint.via,
                 handoff=travel and travel:DescribeHandoff(hint, zoneLabels)
                     or "Neighboring zone",
                 -- A zone a single hop away generally beats a remote zone
                 -- with only a couple more possible quests.
-                merit=count / (hops * hops),
+                merit=(relevantZones[id] or 0) / (hops * hops),
                 source="bundled-catalog-provisional",
             }
         end
