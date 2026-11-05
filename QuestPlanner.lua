@@ -145,7 +145,7 @@ local function eligible(lib, id, level, active, raceBit, classBit)
     local max = get(q, id, "requiredMaxLevel")
     if type(max) == "number" and max > 0 and level > max then return false end
     local questLevel = get(q, id, "questLevel")
-    if type(questLevel) == "number" and questLevel > level + 5 then return false end
+    if type(questLevel) == "number" and questLevel > level then return false end
     if not allowed(get(q, id, "requiredRaces"), raceBit) then return false end
     if not allowed(get(q, id, "requiredClasses"), classBit) then return false end
     -- Don't recommend quests with gates we cannot verify from character state.
@@ -727,6 +727,8 @@ function Planner:Scan(mapID, level, active, force)
                 end
                 if start then
                     start.name = name
+                    start.questLevel = get(lib.Quest, id, "questLevel")
+                    start.suggestedGroup = get(lib.Quest, id, "suggestedGroup")
                     start.source = start.confidence == "account-observed"
                         and "Observed on this account"
                         or "ForeverQuest bundled Classic/Forever baseline"
