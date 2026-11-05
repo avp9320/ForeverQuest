@@ -19,6 +19,22 @@
 -- For future Forever corrections, change entries here by quest ID, document
 -- the exact source/build, and keep unverified Classic data labeled.
 _G.ForeverQuestData = {
+    [791] = {
+        -- Carry Your Weight: pickup/turn-in Furl Scornbrow at the upper
+        -- floor of the Razor Hill watchtower. Coordinates are a published
+        -- Forever guide location, not an independently observed live pin.
+        -- https://bindonforever.com/quest/791
+        -- https://questing.wiki/wow-forever/quests/791/
+        mapID = 1411,
+        pickup = {x = 0.499, y = 0.404,
+            npc = "Furl Scornbrow",
+            area = "Razor Hill watchtower (upper level)"},
+        turnIn = {x = 0.499, y = 0.404,
+            npc = "Furl Scornbrow",
+            area = "Razor Hill watchtower (upper level)"},
+        source = "Published Forever quest guide",
+        confidence = "forever-guide",
+    },
     [97279] = {
         -- Wayward Weapons, new to Forever.
         mapID = 1411,
