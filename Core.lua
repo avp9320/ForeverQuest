@@ -258,12 +258,57 @@ local function CollectQuests()
                     if waypointMap then waypointSource = "curated" end
                 end
             end
-            if not waypointMap and Planner and Planner.GetActivePositions then
-                goalPoints = Planner:GetActivePositions(
-                    questID, complete, currentMap, GetObjectives(questID), 6)
-                local location = goalPoints[1]
+            -- Build separate unfinished targets even when the game already
+            -- offers a waypoint. Previously ANY native waypoint suppressed
+            -- multi-objective routing for the entire quest.
+            if Planner and Planner.GetActivePositions and not complete then
+                local candidates = Planner:GetActivePositions(
+                    questID, false, currentMap, GetObjectives(questID), 6)
+                if type(candidates) == "table" and #candidates > 0 then
+                    local accept = true
+                    if waypointMap == currentMap and waypointX and waypointY then
+                        -- A native waypoint is more reliable than an inherited
+                        -- Classic spawn. Match it to an identified target only
+                        -- when their areas are reasonably close; otherwise
+                        -- keep the native waypoint rather than guessing.
+                        local closest, bestSquared
+                        for _, target in ipairs(candidates) do
+                            if target.mapID == currentMap then
+                                local dx = target.x - waypointX
+                                local dy = target.y - waypointY
+                                local squared = dx * dx + dy * dy
+                                if not bestSquared or squared < bestSquared then
+                                    bestSquared, closest = squared, target
+                                end
+                            end
+                        end
+                        if closest and bestSquared <= 0.055 * 0.055 then
+                            closest.x, closest.y = waypointX, waypointY
+                            closest.confidence = "client"
+                            closest.waypointSource = "client"
+                        else
+                            accept = false
+                        end
+                    end
+                    if accept then
+                        goalPoints = candidates
+                        local location = goalPoints[1]
+                        if not waypointMap and location then
+                            waypointMap, waypointX, waypointY = location.mapID,
+                                location.x, location.y
+                            waypointSource = "database"
+                            waypointArea = location.entityName
+                            waypointConfidence = location.confidence
+                        end
+                    end
+                end
+            elseif not waypointMap and Planner and Planner.GetActivePosition then
+                -- Completed quests only need one alternative turn-in position.
+                local location = Planner:GetActivePosition(
+                    questID, true, currentMap, GetObjectives(questID))
                 if location then
-                    waypointMap, waypointX, waypointY = location.mapID, location.x, location.y
+                    waypointMap, waypointX, waypointY = location.mapID,
+                        location.x, location.y
                     waypointSource = "database"
                     waypointArea = location.entityName
                     waypointConfidence = location.confidence
@@ -1064,7 +1109,7 @@ RefreshFocus = function()
         and selected.questID == quest.questID and selected.goalKey ~= "main" then
         quest.waypointMap = selected.mapID
         quest.waypointX, quest.waypointY = selected.x, selected.y
-        quest.waypointSource = "database"
+        quest.waypointSource = selected.waypointSource or "database"
         quest.waypointArea = selected.targetName or selected.area
         quest.waypointConfidence = selected.confidence
     end
