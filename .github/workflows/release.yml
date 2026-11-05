@@ -6,6 +6,8 @@ on:
     paths:
       - '*.lua'
       - 'tests/*.lua'
+      - 'tools/*.lua'
+      - 'DATA_SOURCES.md'
       - '*.toc'
       - 'README.md'
       - '.pkgmeta'
@@ -36,14 +38,36 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Validate Lua syntax and route logic
+      - name: Generate bundled Classic + Forever quest catalog
         shell: bash
         run: |
+          set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq lua5.1
-          for f in *.lua tests/*.lua; do luac5.1 -p "$f"; done
+          # Pin to a reviewed upstream revision. No moving master/beta data.
+          SOURCE_REV=a37877c1490027ee48e5722bf602adf34f95a6dc
+          for file in \
+            data/Forever/foreverQuestDB.lua \
+            data/Forever/foreverNpcDB.lua \
+            data/Forever/foreverObjectDB.lua \
+            data/Forever/foreverItemDB.lua \
+            support/Forever/Zones/areaIdToUiMapId.lua \
+            LICENSE.md gpl-3.0.md
+          do
+            mkdir -p ".catalog_source/$(dirname "$file")"
+            curl --fail --silent --show-error --location --retry 3 \
+              "https://raw.githubusercontent.com/Questie/QuestieDB/${SOURCE_REV}/${file}" \
+              --output ".catalog_source/${file}"
+          done
+          lua5.1 tools/build_catalog.lua .catalog_source CatalogData.lua
+
+      - name: Validate standalone Lua syntax and quest routing
+        shell: bash
+        run: |
+          for f in *.lua tests/*.lua tools/*.lua; do luac5.1 -p "$f"; done
           lua5.1 tests/route_spec.lua
           lua5.1 tests/core_smoke.lua
+          lua5.1 tests/catalog_smoke.lua
 
       - name: Check whether this version already exists
         id: exists
@@ -62,7 +86,10 @@ jobs:
         run: |
           VERSION='${{ steps.version.outputs.version }}'
           mkdir -p package/ForeverQuest
-          cp ForeverQuest.toc *.lua README.md package/ForeverQuest/
+          cp ForeverQuest.toc *.lua README.md DATA_SOURCES.md package/ForeverQuest/
+          mkdir -p package/ForeverQuest/ThirdPartyLicenses
+          cp .catalog_source/LICENSE.md package/ForeverQuest/ThirdPartyLicenses/QuestieDB-LICENSE.md
+          cp .catalog_source/gpl-3.0.md package/ForeverQuest/ThirdPartyLicenses/QuestieDB-GPLv3.md
           cd package
           zip -r "../ForeverQuest-v${VERSION}.zip" ForeverQuest
 
