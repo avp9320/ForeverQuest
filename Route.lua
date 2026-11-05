@@ -196,6 +196,20 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
     -- a distant quest giver has several possible quests. Collect them
     -- opportunistically when near the player, or near a known active task.
     -- With an empty active log, future pickups remain the primary plan.
+    -- An unsafe accepted objective must not suppress discovery of a safe
+    -- pickup hub. Filter accepted work BEFORE deciding whether speculative
+    -- pickups are local detours or the main plan. This also avoids rewarding
+    -- pickups for proximity to objectives AUTO will never recommend.
+    local strategy = _G.ForeverQuestStrategy
+    if strategy and strategy.IsAutoEligible and not options.includeUnsafe then
+        local safe = {mapID = mapID}
+        for _, stop in ipairs(all) do
+            if strategy:IsAutoEligible(stop, options) then
+                safe[#safe + 1] = stop
+            end
+        end
+        all = safe
+    end
     local activeCount = #all
     for _, q in ipairs(pickups or {}) do
         if not avoided[q.questID]
