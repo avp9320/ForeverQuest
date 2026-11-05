@@ -234,6 +234,11 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
     -- return for turn-ins. Newly accepted quests will trigger a fresh plan.
     -- Only local pickups join a circuit that already has active objectives;
     -- otherwise a distant speculative starter cannot hijack the route.
+    -- Once we start collecting quests at a hub, finish its nearby pickups
+    -- before heading to objectives. A single pickup at step one was not
+    -- enough: the planner could walk away from a second nearby quest giver.
+    -- Never chase distant speculative pickups while active work remains.
+    local collectingHub = false
     local function phaseForStep(step)
         local hasObjective, hasTurnin, localPickup = false, false, false
         for _, candidate in ipairs(all) do
@@ -241,12 +246,23 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
                 if candidate.kind == "objective" then hasObjective = true end
                 if candidate.kind == "turnin" then hasTurnin = true end
                 if candidate.kind == "pickup"
-                    and distance(candidate.x, candidate.y, x, y) <= 0.035 then
+                    and distance(candidate.x, candidate.y, x, y) <= PICKUP_HUB then
                     localPickup = true
                 end
             end
         end
-        if step == 1 and localPickup then return "pickup" end
+        if step == 1 then
+            -- Initial hub radius can be larger than the between-giver radius.
+            for _, candidate in ipairs(all) do
+                if candidate.kind == "pickup" and not used[candidate.key]
+                    and distance(candidate.x, candidate.y, x, y) <= 0.035 then
+                    collectingHub = true
+                    return "pickup"
+                end
+            end
+        end
+        if collectingHub and localPickup then return "pickup" end
+        collectingHub = false
         if hasObjective then return "objective" end
         if hasTurnin then return "turnin" end
         return "pickup"
