@@ -547,6 +547,8 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
     local key = tostring(currentMap) .. ":" .. tostring(level)
         .. ":" .. table.concat(ids, ",") .. ":" .. tostring(UnitFactionGroup
             and UnitFactionGroup("player") or "?")
+        .. ":" .. tostring(UnitRace and select(3, UnitRace("player")) or "?")
+        .. ":" .. tostring(UnitClass and select(3, UnitClass("player")) or "?")
     if zonesMemo.key == key then return zonesMemo.options end
 
     local eligibleZones, travelHints = {}, {}
