@@ -885,6 +885,9 @@ frame:SetScript("OnEnter", function(self)
             local zone = state.nextZones[i]
             GameTooltip:AddLine(zone.name .. " • " .. zone.possibleQuests
                 .. " possibly eligible quests", 0.8, 0.8, 0.8)
+            if zone.handoff then
+                GameTooltip:AddLine("  " .. zone.handoff,0.65,0.70,0.82,true)
+            end
         end
         GameTooltip:AddLine("Not a travel route; verify quest availability.",
             0.63, 0.63, 0.63, true)
@@ -1213,8 +1216,19 @@ RefreshFocus = function()
             if options and options[1] then
                 frame.title:SetText("Consider: " .. options[1].name)
                 frame.title:SetTextColor(0.62, 0.87, 1.0)
-                frame.objective:SetText(options[1].possibleQuests
-                    .. " possible quests in a neighboring zone")
+                local best=options[1]
+                if (best.hops or 1)>1 and best.via then
+                    local viaName
+                    if C_Map and C_Map.GetMapInfo then
+                        local ok,info=pcall(C_Map.GetMapInfo,best.via)
+                        if ok and info then viaName=info.name end
+                    end
+                    frame.objective:SetText("Via " .. (viaName or "a nearby zone")
+                        .. " • " .. best.possibleQuests .. " possible quests")
+                else
+                    frame.objective:SetText(best.possibleQuests
+                        .. " possible quests in that zone")
+                end
             else
                 frame.title:SetText("No location-backed quest found")
                 frame.objective:SetText("Try /fq zones or check live quest NPCs")
@@ -1450,12 +1464,14 @@ SlashCmdList.FOREVERQUEST = function(message)
             local options = Planner:GetNextZones(
                 GetBestMap(), UnitLevel("player"), active, 3)
             if #options == 0 then
-                Print("No neighboring zones with plausible quests in the baseline at this level.")
+                Print("No nearby or connected zones with plausible quests in the baseline at this level.")
             else
                 Print("Neighboring zones with possible quests (catalog estimates):")
                 for i = 1, math.min(3, #options) do
-                    Print(i .. ". " .. options[i].name .. " — "
-                        .. options[i].possibleQuests .. " possible quests")
+                    local option=options[i]
+                    Print(i .. ". " .. option.name .. " — "
+                        .. option.possibleQuests .. " possible quests; "
+                        .. (option.handoff or "zone transition unverified"))
                 end
             end
         end
