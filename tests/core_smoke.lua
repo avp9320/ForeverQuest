@@ -57,6 +57,7 @@ dofile("QuestPlanner.lua")
 dofile("Strategy.lua")
 dofile("Route.lua")
 dofile("QuestItems.lua")
+dofile("Navigation.lua")
 dofile("Core.lua")
 local core=allFrames[3] -- UIParent and GameTooltip were created before the addon.
 assert(core.scripts.OnEvent,"core event listener")
@@ -219,7 +220,7 @@ p.GetNearby=function()
     return all
 end
 core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
-assert(card.objective:GetText()=="2 possible quests at this stop",
+assert(card.objective:GetText():find("2 possible quests",1,true),
     "quest giver hub shows combined pickup count")
 SlashCmdList.FOREVERQUEST("skip")
 assert(card.title:GetText()=="Pick up: Second Hub Quest",
@@ -239,4 +240,43 @@ SlashCmdList.FOREVERQUEST("mode complete")
 assert(ForeverQuestDB.routeMode=="complete","completion preference saved")
 SlashCmdList.FOREVERQUEST("mode balanced")
 assert(ForeverQuestDB.routeMode=="balanced","balanced preference restored")
+-- A known pickup now identifies the actual quest giver and landmark,
+-- displays a bearing/estimated yardage and pins it automatically when
+-- Blizzard has no existing user waypoint.
+local pin, pinCount=nil,0
+C_Map.GetUserWaypoint=function() return pin end
+C_Map.GetMapWorldSize=function() return 1000,1000 end
+C_Map.SetUserWaypoint=function(point)
+    pin=point;pinCount=pinCount+1;return true
+end
+C_Map.CanSetUserWaypointOnMap=function()return true end
+UiMapPoint={CreateFromCoordinates=function(map,x,y)
+    return {uiMapID=map,position={x=x,y=y}}
+end}
+p.GetNearby=function()
+    return {{questID=791,mapID=1411,x=.499,y=.404,
+        name="Carry Your Weight",giverID=3147,giverName="Furl Scornbrow",
+        area="Razor Hill watchtower (upper level)",
+        confidence="forever-guide",kind="NPC"}}
+end
+GetTime=function()return 170 end
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+assert(card.title:GetText()=="Pick up: Carry Your Weight",
+    "known pickup title")
+assert(card.objective:GetText():find("Furl Scornbrow",1,true)
+    and card.objective:GetText():find("Razor Hill",1,true),
+    "quest giver and meaningful landmark visible")
+assert(card.distance:GetText():find("~",1,true)
+    and card.distance:GetText():find("yd",1,true),
+    "real straight-line distance replaces plain coordinates")
+assert(pin and pin.uiMapID==1411 and math.abs(pin.position.x-.499)<.001,
+    "automatic map pin targets correct starter")
+local marksBefore=pinCount
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+assert(pinCount==marksBefore,"same destination does not rewrite waypoint")
+SlashCmdList.FOREVERQUEST("pin manual")
+assert(ForeverQuestDB.autoWaypoint==false,"manual pin mode stored")
+SlashCmdList.FOREVERQUEST("pin auto")
+assert(ForeverQuestDB.autoWaypoint==true,"automatic pin mode restored")
+
 print("ForeverQuest Core mock game/UI smoke test passed")
