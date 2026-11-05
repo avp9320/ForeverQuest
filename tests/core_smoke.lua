@@ -139,16 +139,19 @@ assert(ForeverQuestDB.mode=="MANUAL","manual mode for second target")
 assert(card.objective:GetText()=="0/4 Second Target",
     "manual cycle displays the selected second target")
 assert(card.distance:GetText()=="~44,64","distance label matches selected target")
-local waypoint
-UiMapPoint={CreateFromCoordinates=function(map,x,y)
-    return {mapID=map,x=x,y=y}
-end}
-C_Map.SetUserWaypoint=function(point) waypoint=point; return true end
-C_Map.CanSetUserWaypointOnMap=function() return true end
+local tracked, trackWrites
+tracked, trackWrites = nil, 0
+C_SuperTrack={
+    GetSuperTrackedQuestID=function() return tracked end,
+    SetSuperTrackedQuestID=function(id)
+        tracked=id
+        trackWrites=trackWrites+1
+        return true
+    end,
+}
 SlashCmdList.FOREVERQUEST("navigate")
-assert(waypoint and math.abs(waypoint.x-.435)<.001,
-    "navigation uses chosen second target, not first objective")
-
+assert(tracked==100, "navigation selects official Blizzard quest objective")
+assert(trackWrites==1, "only one supertrack write")
 -- Progress on the actually selected objective should teach its location
 -- to other characters without another addon or a manual slash command.
 objectiveRows[2].text="1/4 Second Target"
@@ -240,19 +243,14 @@ SlashCmdList.FOREVERQUEST("mode complete")
 assert(ForeverQuestDB.routeMode=="complete","completion preference saved")
 SlashCmdList.FOREVERQUEST("mode balanced")
 assert(ForeverQuestDB.routeMode=="balanced","balanced preference restored")
--- A known pickup now identifies the actual quest giver and landmark,
--- displays a bearing/estimated yardage and pins it automatically when
--- Blizzard has no existing user waypoint.
-local pin, pinCount=nil,0
-C_Map.GetUserWaypoint=function() return pin end
-C_Map.GetMapWorldSize=function() return 1000,1000 end
-C_Map.SetUserWaypoint=function(point)
-    pin=point;pinCount=pinCount+1;return true
+-- Suggested pickups are not accepted quests and cannot be supertracked.
+-- Their readable location still appears, without creating map pins.
+local pinWrites=0
+C_Map.SetUserWaypoint=function()
+    pinWrites=pinWrites+1
+    return true
 end
-C_Map.CanSetUserWaypointOnMap=function()return true end
-UiMapPoint={CreateFromCoordinates=function(map,x,y)
-    return {uiMapID=map,position={x=x,y=y}}
-end}
+C_Map.GetMapWorldSize=function() return 1000,1000 end
 p.GetNearby=function()
     return {{questID=791,mapID=1411,x=.499,y=.404,
         name="Carry Your Weight",giverID=3147,giverName="Furl Scornbrow",
@@ -260,6 +258,7 @@ p.GetNearby=function()
         confidence="forever-guide",kind="NPC"}}
 end
 GetTime=function()return 170 end
+local priorTracked=tracked
 core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
 assert(card.title:GetText()=="Pick up: Carry Your Weight",
     "known pickup title")
@@ -268,15 +267,10 @@ assert(card.objective:GetText():find("Furl Scornbrow",1,true)
     "quest giver and meaningful landmark visible")
 assert(card.distance:GetText():find("~",1,true)
     and card.distance:GetText():find("yd",1,true),
-    "real straight-line distance replaces plain coordinates")
-assert(pin and pin.uiMapID==1411 and math.abs(pin.position.x-.499)<.001,
-    "automatic map pin targets correct starter")
-local marksBefore=pinCount
-core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
-assert(pinCount==marksBefore,"same destination does not rewrite waypoint")
-SlashCmdList.FOREVERQUEST("pin manual")
-assert(ForeverQuestDB.autoWaypoint==false,"manual pin mode stored")
-SlashCmdList.FOREVERQUEST("pin auto")
-assert(ForeverQuestDB.autoWaypoint==true,"automatic pin mode restored")
+    "card retains straight-line distance")
+assert(pinWrites==0,"no map pins from AUTO")
+SlashCmdList.FOREVERQUEST("navigate")
+assert(pinWrites==0,"no map pins from explicit navigate")
+assert(tracked==priorTracked,"pickup does not overwrite Blizzard tracked quest")
 
 print("ForeverQuest Core mock game/UI smoke test passed")
