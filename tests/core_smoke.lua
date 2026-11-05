@@ -134,6 +134,16 @@ end
 core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
 assert(card.title:GetText()=="Sample quest","multi-target quest visible")
 assert(card.objective:GetText()=="0/3 First Target","closest objective in AUTO")
+SlashCmdList.FOREVERQUEST("later")
+assert(ForeverQuestDB.deferredByCharacter["Player-test-1"]["objective:100:enemy:55"],
+    "deferral stores only the chosen objective per character")
+assert(card.objective:GetText()=="0/4 Second Target",
+    "AUTO moves to another safe objective after /fq later")
+SlashCmdList.FOREVERQUEST("resume")
+assert(next(ForeverQuestDB.deferredByCharacter["Player-test-1"])==nil,
+    "resume clears saved deferrals")
+assert(card.objective:GetText()=="0/3 First Target",
+    "resume makes the nearby deferred objective available again")
 card.scripts.OnClick(card,"LeftButton")
 assert(ForeverQuestDB.mode=="MANUAL","manual mode for second target")
 assert(card.objective:GetText()=="0/4 Second Target",
