@@ -26,7 +26,7 @@ quest-item button. Nothing is continuously posted to chat.
 
 - Direction arrow now uses map world dimensions when available so diagonal bearings are not distorted on rectangular zones.
 - Direction calculations fall back safely on Lua 5.1 clients without `math.atan2`, instead of breaking the arrow update.
-- Keeps the v1.0.1 compass, distance, descriptive destinations, and automatic map waypoints.
+- Keeps the v1.0.1 compass, distance, descriptive destinations, and native quest tracking (map pins were removed in v1.0.4).
 
 ## v1.0.1 — readable navigation and map waypoints
 
