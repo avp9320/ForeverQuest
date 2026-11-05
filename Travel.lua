@@ -12,19 +12,22 @@ local links = {
     [1411]={1413},                  -- Durotar -> Barrens
     [1412]={1413},                  -- Mulgore -> Barrens
     [1413]={1411,1412,1442,1440,1441,1445}, -- Barrens and Dustwallow
-    [1420]={1421},                  -- Tirisfal -> Silverpine
+    [1420]={1421,1422},             -- Tirisfal -> Silverpine / Western Plaguelands (Bulwark)
     [1421]={1420,1424},             -- Silverpine -> Hillsbrad
-    [1424]={1421,1417,1416},       -- Hillsbrad
+    [1424]={1421,1417,1416,1425},  -- Hillsbrad -> Hinterlands via eastern pass
     [1417]={1424,1437,1416},       -- Arathi
     [1416]={1424,1417},            -- Alterac
-    [1422]={1423},                  -- Western Plaguelands
+    [1422]={1420,1423},             -- Western Plaguelands -> Tirisfal / Eastern Plaguelands
     [1423]={1422},                  -- Eastern Plaguelands
     [1429]={1436,1433},            -- Elwynn
     [1436]={1429,1431,1433},       -- Westfall
     [1433]={1429,1436,1431},       -- Redridge
     [1431]={1436,1433,1434,1430},  -- Duskwood
     [1434]={1431},                  -- Stranglethorn
-    [1430]={1431},                  -- Deadwind Pass
+    [1430]={1431,1435},             -- Deadwind Pass -> Swamp of Sorrows
+    [1435]={1430,1419},             -- Swamp of Sorrows -> Blasted Lands
+    [1419]={1435},                  -- Blasted Lands -> Swamp of Sorrows
+    [1425]={1424},                  -- Hinterlands -> Hillsbrad
     [1426]={1432},                  -- Dun Morogh -> Loch Modan
     [1432]={1426,1437,1418},       -- Loch Modan
     [1437]={1432,1417},            -- Wetlands
@@ -56,7 +59,8 @@ local hordeBands = {
     [1442]={15,28}, [1443]={30,40}, [1441]={25,35},
     [1445]={35,45}, [1444]={40,50}, [1446]={43,52},
     [1449]={48,55}, [1451]={55,60}, [1448]={48,55},
-    [1452]={53,60}, [1424]={20,32}, [1417]={30,40},
+    [1452]={53,60}, [1424]={20,32}, [1417]={30,40}, [1425]={40,52},
+    [1435]={35,48}, [1419]={45,60},
     [1416]={30,40}, [1434]={30,50}, [1418]={35,45},
     [1427]={43,50}, [1428]={50,60}, [1422]={50,60},
     [1423]={55,60},
