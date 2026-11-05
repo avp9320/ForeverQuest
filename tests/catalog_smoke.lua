@@ -17,6 +17,13 @@ local n=0
 for _ in pairs(db.AreaToMap) do n=n+1 end
 assert(n>200,"too few area mapping entries")
 assert(db.Quest.Get(99999999,"name")==nil,"unknown quest should not exist")
+local triggers=0
+for _, questID in ipairs(ids) do
+    if type(db.Quest.Get(questID,"triggerPoints")) == "table" then
+        triggers=triggers+1
+    end
+end
+assert(triggers>0,"no exploration trigger coordinates in bundled quest catalog")
 -- Run the actual planner against the bundled data, not a separately
 -- installed addon. The mock character is an Orc warrior in Durotar.
 C_Map = {
@@ -37,4 +44,4 @@ assert(#options > 0, "no starter quests found in Durotar from bundled data")
 assert(options[1].name and options[1].mapID == 1411,
     "bad candidate quest mapping")
 assert(not _G.LibQuestieDB, "external QuestieDB runtime must not be loaded")
-print(string.format("Standalone catalog integration passed: %d quests, %d areas, %d nearby candidates",#ids,n,#options))
+print(string.format("Standalone catalog integration passed: %d quests, %d areas, %d exploration triggers, %d nearby candidates",#ids,n,triggers,#options))
