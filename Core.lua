@@ -23,6 +23,7 @@ local state = {
     routeStop = nil,
     routeKey = nil,
     lastRouteSwitch = 0,
+    manualChoice = nil,
     focusScore = nil,
     lastFocusChange = 0,
     refreshElapsed = 0,
@@ -661,29 +662,49 @@ local function SetFocus(quest)
     end
 end
 
+-- Cycle planned actions, including possible pickups even with no quest log.
+local RefreshFocus
 local function ManualCycle(direction)
-    if #state.quests == 0 then
+    local stops = state.routePlan and state.routePlan.stops or {}
+    if #stops > 0 then
+        local index = 0
+        local kind = ForeverQuestDB.mode == "MANUAL"
+            and ForeverQuestDB.manualKind
+            or (state.routeStop and state.routeStop.kind)
+        local questID = ForeverQuestDB.mode == "MANUAL"
+            and ForeverQuestDB.manualQuestID
+            or (state.routeStop and state.routeStop.questID)
+        for i, stop in ipairs(stops) do
+            if stop.kind == kind and stop.questID == questID then
+                index = i
+                break
+            end
+        end
+        index = index + direction
+        if index > #stops then index = 1 end
+        if index < 1 then index = #stops end
+        local selected = stops[index]
+        ForeverQuestDB.mode = "MANUAL"
+        ForeverQuestDB.manualKind = selected.kind
+        ForeverQuestDB.manualQuestID = selected.questID
+        state.manualChoice = selected
+        if RefreshFocus then RefreshFocus() end
         return
     end
 
+    if #state.quests == 0 then return end
     ForeverQuestDB.mode = "MANUAL"
-    local currentIndex = state.pickup and 0 or 1
-    for index, quest in ipairs(state.quests) do
-        if quest.questID == state.focusQuestID then
-            currentIndex = index
-            break
-        end
+    ForeverQuestDB.manualKind = nil
+    local currentIndex = 1
+    for i, quest in ipairs(state.quests) do
+        if quest.questID == state.focusQuestID then currentIndex = i; break end
     end
-
     currentIndex = currentIndex + direction
-    if currentIndex > #state.quests then
-        currentIndex = 1
-    elseif currentIndex < 1 then
-        currentIndex = #state.quests
-    end
-
+    if currentIndex > #state.quests then currentIndex = 1 end
+    if currentIndex < 1 then currentIndex = #state.quests end
     ForeverQuestDB.manualQuestID = state.quests[currentIndex].questID
-    SetFocus(state.quests[currentIndex])
+    state.manualChoice = nil
+    if RefreshFocus then RefreshFocus() end
 end
 
 frame:SetScript("OnClick", function(_, button)
