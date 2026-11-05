@@ -937,10 +937,13 @@ local function BuildRoute()
     if Planner and Planner.Available and Planner:Available() then
         pickups = Planner:GetNearby(mapID, 35)
     end
+    local active = {}
+    for _, q in ipairs(state.quests) do active[q.questID]=true end
     local plan = Route:Build(state.quests, pickups, mapID, px, py, {
         level = UnitLevel and UnitLevel("player") or 1,
         mode = ForeverQuestDB.routeMode or "balanced",
         avoided = AvoidedQuests(),
+        active = active,
         groupSize = math.max(1,(GetNumGroupMembers and GetNumGroupMembers()) or 1),
     })
     state.routePlan = plan
