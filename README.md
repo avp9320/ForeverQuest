@@ -4,7 +4,7 @@ A compact smart quest focus and navigation addon for **WoW: Forever**.
 
 ForeverQuest is built around one idea: **lots of quest information should be available, but very little of it should need to stay on your screen.**
 
-## v0.5.1 — standalone quest planner with neighboring-zone lookahead
+## v0.6.0 — individual-objective planning and clearer route decisions
 
 **ForeverQuest is now a standalone addon.** The release ZIP includes its own Classic + Forever quest catalog: 4,244 quests and thousands of quest-related NPCs, objects and item-drop references from a pinned factual snapshot. You do **not** need Questie, QuestieDB, or any other quest addon installed.
 
@@ -18,6 +18,16 @@ ForeverQuest is built around one idea: **lots of quest information should be ava
 - Uses a nearby possible pickup as a suggestion when no active objective is worth interrupting.
 - Shows an estimated questgiver location and offers a waypoint on explicit Shift-click or \`/fq navigate\`.
 - Lists up to five candidate pickups with \`/fq plan\`. All candidates are **provisional** until the live client confirms them.
+
+### Better decisions inside individual quests
+
+- A quest with several unfinished targets now yields distinct route goals for its NPCs, interactable objects, and item collection sources.
+- Completing a target removes it from planned destinations when the live quest log confirms completion.
+- The compact card shows **the chosen target's progress**, and the directional arrow and explicit waypoint follow that same target instead of always pointing to the quest's first objective.
+- Manual cycling can select a different objective within the same quest. Its goal identity remains stable as progress changes; right-click restores AUTO.
+- Distant *unconfirmed* quest pickups won't derail a nearby active quest. Possible pickups are recommended if nearby, along accepted objectives, or when the quest log has no known local work.
+- Exploration quests with documented location triggers now have a fallback search area when there's no unfinished kill/collection goal. Locations remain provisional.
+- `/fq route` identifies nearby overlapping tasks, and `/fq why` explains the current automatic recommendation and its location confidence.
 
 ### Location-backed route planning
 
@@ -71,7 +81,7 @@ These are **same-map map-coordinate estimates**, not walkable paths. The system 
 
 Just install **ForeverQuest**. No separate addon or downloaded database is required. The release ZIP contains `CatalogData.lua` and `CatalogRuntime.lua`, plus our planner, small quest card, and waypoint integration.
 
-The catalog is generated at build time from a pinned Classic/Forever source revision. It includes quest levels, prerequisite links, starter and turn-in entities, objective references, and approximate sampled spawn positions. See [DATA_SOURCES.md](DATA_SOURCES.md) for provenance and licensing.
+The catalog is generated at build time from a pinned Classic/Forever source revision. It includes quest levels, prerequisite links, starter and turn-in entities, objective references, approximate sampled spawn positions, and location triggers for exploration quests. Guide prose is not distributed. See [DATA_SOURCES.md](DATA_SOURCES.md) for provenance and licensing.
 
 Classic facts remain **provisional** until verified in Forever. Each future release can refresh the bundled catalog with documented Forever updates. No network access is needed while playing, and no addon-to-addon dependency exists.
 
@@ -83,6 +93,7 @@ This is still a same-map, multi-stop planner, not a validated 1–60 cross-zone 
 - `/fq lock` - lock the card in place
 - `/fq auto` - return to automatic quest selection
 - `/fq route` - suggest a short multi-stop route across active quests and unaccepted pickups
+- `/fq why` - explain the currently recommended stop and how confident its location is
 - `/fq zones` - inspect possible quests in neighboring leveling zones
 - `/fq skip` - dismiss the currently suggested possible pickup for this character
 - `/fq unskip` - restore all previously skipped possible pickups for this character
