@@ -148,12 +148,25 @@ SlashCmdList.FOREVERQUEST("navigate")
 assert(waypoint and math.abs(waypoint.x-.435)<.001,
     "navigation uses chosen second target, not first objective")
 
+-- Progress on the actually selected objective should teach its location
+-- to other characters without another addon or a manual slash command.
+objectiveRows[2].text="1/4 Second Target"
+objectiveRows[2].numFulfilled=1
+objectiveRows[2].numRequired=4
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+local learnedObjective=ForeverQuestDB.learnedQuestLocations
+    and ForeverQuestDB.learnedQuestLocations.objective
+    and ForeverQuestDB.learnedQuestLocations.objective[100]
+    and ForeverQuestDB.learnedQuestLocations.objective[100]["enemy:56"]
+assert(learnedObjective and learnedObjective.mapID==1411,
+    "actual objective progress records account-wide coordinates")
+
 -- A completed first target vanishes from suggested goals while the second
 -- stays in the plan and remains correctly selected.
 objectiveRows[1].text="3/3 First Target"
 objectiveRows[1].finished=true
 core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
-assert(card.objective:GetText()=="0/4 Second Target",
+assert(card.objective:GetText()=="1/4 Second Target",
     "manual route keeps unfinished target after another goal completes")
 assert(card.distance:GetText()=="~44,64","waypoint does not regress on refresh")
 card.scripts.OnClick(card,"RightButton")
