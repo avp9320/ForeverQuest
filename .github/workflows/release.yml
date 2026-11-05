@@ -70,6 +70,7 @@ jobs:
           lua5.1 tests/catalog_smoke.lua
           lua5.1 tests/roadmap_spec.lua
           lua5.1 tests/chains_spec.lua
+          lua5.1 tests/navigation_spec.lua
 
       - name: Check whether this version already exists
         id: exists
