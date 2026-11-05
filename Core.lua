@@ -471,10 +471,24 @@ local function NavigateToFocus()
     Print("No client-supported waypoint is available for this quest.")
 end
 
+-- Skips are character-specific. Database predictions can be wrong on
+-- Forever, so the player can dismiss a pickup without disabling AUTO.
+local function IgnoredPickups()
+    if not ForeverQuestDB then return {} end
+    ForeverQuestDB.ignoredByCharacter = ForeverQuestDB.ignoredByCharacter or {}
+    local key = (UnitGUID and UnitGUID("player"))
+        or ((UnitName and UnitName("player") or "player")
+            .. "-" .. (GetRealmName and GetRealmName() or "realm"))
+    local account = ForeverQuestDB.ignoredByCharacter
+    account[key] = account[key] or {}
+    return account[key]
+end
+
 local function RefreshFutureQuests()
     if not Planner or not Planner.Available or not Planner:Available() then return end
     local active = {}
     for _, quest in ipairs(state.quests) do active[quest.questID] = true end
+    for id in pairs(IgnoredPickups()) do active[id] = true end
     Planner:Scan(GetBestMap(), UnitLevel("player"), active)
 end
 
@@ -700,6 +714,10 @@ frame:SetScript("OnEnter", function(self)
     GameTooltip:AddLine("Left click / mouse wheel: cycle quests", 0.8, 0.8, 0.8)
     GameTooltip:AddLine("Right click: return to AUTO", 0.8, 0.8, 0.8)
     GameTooltip:AddLine("Shift-left click: navigate using Blizzard's quest tracking", 0.8, 0.8, 0.8)
+    if state.pickup then
+        GameTooltip:AddLine("/fq skip hides an unavailable suggested quest",
+            0.7, 0.7, 0.7)
+    end
     if state.pickup then
         GameTooltip:AddLine("Possible new quest: " .. state.pickup.name, 0.45, 0.95, 0.56, true)
         GameTooltip:AddLine(string.format("Quest giver ~%.1f, %.1f (%s)",
@@ -1014,6 +1032,25 @@ SlashCmdList.FOREVERQUEST = function(message)
         Print(Planner and Planner:Status() or "Quest data provider unavailable.")
     elseif command == "route" then
         PrintRoute()
+    elseif command == "skip" then
+        if state.pickup then
+            local id, name = state.pickup.questID, state.pickup.name
+            IgnoredPickups()[id] = true
+            if Planner then Planner:Invalidate() end
+            state.pickup = nil
+            state.routeStop = nil
+            RefreshFocus()
+            Print("Skipped provisional pickup: " .. tostring(name)
+                .. ". /fq unskip restores hidden suggestions.")
+        else
+            Print("No suggested pickup to skip right now.")
+        end
+    elseif command == "unskip" then
+        local ignored = IgnoredPickups()
+        for id in pairs(ignored) do ignored[id] = nil end
+        if Planner then Planner:Invalidate() end
+        RefreshFocus()
+        Print("Restored skipped possible quest pickups for this character.")
     elseif command == "navigate" then
         NavigateToFocus()
     elseif command == "debug" then
@@ -1028,7 +1065,7 @@ SlashCmdList.FOREVERQUEST = function(message)
         frame:SetPoint(defaults.point, UIParent, defaults.relativePoint, defaults.x, defaults.y)
         Print("position reset")
     else
-        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq plan, /fq data, /fq area, /fq navigate, /fq debug, /fq reset")
+        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq plan, /fq skip, /fq unskip, /fq data, /fq area, /fq navigate, /fq debug, /fq reset")
     end
 end
 
