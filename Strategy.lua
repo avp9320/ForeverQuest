@@ -12,6 +12,10 @@ local function questField(id, field)
 end
 
 local function chainTargets(id)
+    local chains = _G.ForeverQuestChains
+    if chains and chains.GetNextIDs then
+        return chains:GetNextIDs(id)
+    end
     local candidates, seen = {}, {}
     local nextID = questField(id, "nextQuestInChain")
     if type(nextID) == "number" and nextID > 0 then
