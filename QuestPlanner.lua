@@ -683,12 +683,39 @@ function Planner:GetNearby(mapID, maxResults)
         local dx, dy = item.x - px, item.y - py
         ranked[#ranked+1] = {item = item, distance = math.sqrt(dx*dx + dy*dy)}
     end
-    table.sort(ranked, function(a, b) return a.distance < b.distance end)
+    -- Prefer a productive quest hub over an isolated starter at nearly the
+    -- same distance. This is a local pickup *ranking*, not a claim that the
+    -- catalog's inherited spawn points are confirmed in Forever.
+    -- A distant village cannot outrank a nearby starter on hub size alone.
+    for _, entry in ipairs(ranked) do
+        local neighbors = 0
+        for _, other in ipairs(ranked) do
+            if entry ~= other then
+                local dx = entry.item.x - other.item.x
+                local dy = entry.item.y - other.item.y
+                if dx * dx + dy * dy <= 0.018 * 0.018 then
+                    neighbors = neighbors + 1
+                end
+            end
+        end
+        entry.hubCount = 1 + neighbors
+        entry.rankDistance = entry.distance - math.min(3, neighbors) * 0.008
+    end
+    table.sort(ranked, function(a, b)
+        if a.rankDistance == b.rankDistance then
+            if a.distance == b.distance then
+                return a.item.questID < b.item.questID
+            end
+            return a.distance < b.distance
+        end
+        return a.rankDistance < b.rankDistance
+    end)
     local out = {}
     for i = 1, math.min(maxResults or 5, #ranked) do
         local copy = {}
         for key, value in pairs(ranked[i].item) do copy[key] = value end
         copy.distance = ranked[i].distance
+        copy.hubCount = ranked[i].hubCount
         out[#out+1] = copy
     end
     return out
