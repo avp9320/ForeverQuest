@@ -16,18 +16,25 @@ local function distance(ax, ay, bx, by)
     return math.sqrt(dx * dx + dy * dy)
 end
 
-local function append(all, seen, obj, kind, id, name, mapID, x, y, confidence, area)
-    if not id or seen[tostring(kind) .. ":" .. tostring(id)]
-        or not validPoint(mapID, x, y, all.mapID) then
+local function append(all, seen, kind, id, name, mapID, x, y,
+    confidence, area, goal)
+    local goalKey = goal and goal.goalKey or "main"
+    local key = tostring(kind) .. ":" .. tostring(id) .. ":" .. tostring(goalKey)
+    if not id or seen[key] or not validPoint(mapID, x, y, all.mapID) then
         return
     end
     local stop = {
-        kind = kind, questID = id, name = name,
+        key = key, kind = kind, questID = id, name = name,
+        goalKey = goalKey,
         mapID = mapID, x = x, y = y,
         confidence = confidence or "unknown",
         area = area,
+        targetName = goal and goal.targetName,
+        stepLabel = goal and goal.stepLabel,
+        sourceKind = goal and goal.kind,
+        waypointSource = goal and goal.waypointSource,
     }
-    seen[tostring(kind) .. ":" .. tostring(id)] = true
+    seen[key] = true
     all[#all + 1] = stop
 end
 
@@ -68,14 +75,23 @@ function Route:Build(quests, pickups, mapID, playerX, playerY)
     local all = {mapID = mapID}
     local seen = {}
     for _, q in ipairs(quests or {}) do
-        if q.waypointX and q.waypointY and q.waypointMap then
-            append(all, seen, q, q.complete and "turnin" or "objective",
+        local goals = not q.complete and q.goalPoints
+        if type(goals) == "table" and #goals > 0 then
+            -- Each unfinished objective gets its own route stop. Alternative
+            -- spawn points for the same objective are already collapsed.
+            for _, goal in ipairs(goals) do
+                append(all, seen, "objective", q.questID, q.title,
+                    goal.mapID, goal.x, goal.y,
+                    goal.confidence or "provisional", goal.entityName, goal)
+            end
+        elseif q.waypointX and q.waypointY and q.waypointMap then
+            append(all, seen, q.complete and "turnin" or "objective",
                 q.questID, q.title, q.waypointMap, q.waypointX, q.waypointY,
                 q.waypointConfidence or q.waypointSource, q.waypointArea)
         end
     end
     for _, q in ipairs(pickups or {}) do
-        append(all, seen, q, "pickup", q.questID, q.name,
+        append(all, seen, "pickup", q.questID, q.name,
             q.mapID, q.x, q.y, q.confidence, q.area)
     end
 
@@ -85,8 +101,7 @@ function Route:Build(quests, pickups, mapID, playerX, playerY)
     for step = 1, math.min(5, #all) do
         local best, bestScore, bestDist, bestCluster
         for _, candidate in ipairs(all) do
-            local key = candidate.kind .. ":" .. tostring(candidate.questID)
-            if not used[key] then
+            if not used[candidate.key] then
                 local score, dist, clustered = routeScore(candidate, x, y, all)
                 -- Small stable tie-break avoids nondeterministic NPC spawn order.
                 score = score - (tonumber(candidate.questID) or 0) * 0.000000001
@@ -97,7 +112,7 @@ function Route:Build(quests, pickups, mapID, playerX, playerY)
             end
         end
         if not best then break end
-        used[best.kind .. ":" .. tostring(best.questID)] = true
+        used[best.key] = true
         local stop = {}
         for k, v in pairs(best) do stop[k] = v end
         stop.distance = bestDist
@@ -105,8 +120,11 @@ function Route:Build(quests, pickups, mapID, playerX, playerY)
         stop.nearby = {}
         for _, other in ipairs(all) do
             if other ~= best and distance(best.x, best.y, other.x, other.y) < CLUSTER then
-                stop.nearby[#stop.nearby + 1] = {name = other.name, kind = other.kind,
-                    questID = other.questID}
+                stop.nearby[#stop.nearby + 1] = {
+                    name = other.name, kind = other.kind,
+                    questID = other.questID, goalKey = other.goalKey,
+                    targetName = other.targetName,
+                }
             end
         end
         plan.stops[#plan.stops + 1] = stop
@@ -120,6 +138,11 @@ function Route:Describe(stop)
     local action = stop.kind == "pickup" and "PICK UP"
         or stop.kind == "turnin" and "TURN IN" or "DO"
     local extra = stop.overlapping > 0 and (" • +" .. stop.overlapping .. " nearby") or ""
+    local summary = stop.name or "Quest"
+    if stop.kind == "objective" and stop.targetName
+        and stop.targetName ~= "" then
+        summary = summary .. ": " .. stop.targetName
+    end
     return string.format("%s %s (~%.0f,%.0f)%s", action,
-        stop.name or "Quest", stop.x * 100, stop.y * 100, extra)
+        summary, stop.x * 100, stop.y * 100, extra)
 end
