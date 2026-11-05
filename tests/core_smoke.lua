@@ -273,4 +273,17 @@ SlashCmdList.FOREVERQUEST("navigate")
 assert(pinWrites==0,"no map pins from explicit navigate")
 assert(tracked==priorTracked,"pickup does not overwrite Blizzard tracked quest")
 
+-- Even if the quest log contains only an overlevel quest, AUTO must not
+-- select or supertrack it through the secondary fallback selector.
+log={{questID=999,title="Dangerous Higher Quest",
+    isHeader=false,isHidden=false,level=12}}
+p.GetNearby=function() return {} end
+GetTime=function() return 200 end
+local previousTracking=tracked
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+assert(card.title:GetText()~="Dangerous Higher Quest",
+    "AUTO does not fall back to an overlevel active quest")
+assert(tracked==previousTracking,
+    "AUTO does not supertrack an overlevel active quest")
+
 print("ForeverQuest Core mock game/UI smoke test passed")
