@@ -82,7 +82,7 @@ local hubQuests={
 local hubs=route:Build({},hubQuests,1411,.4,.4)
 equal(hubs.totalCandidates,4,"four distinct potential quest actions")
 equal(hubs.totalLocations,2,"two physical pickup stops")
-equal(#hubs.stops,2,"pickup hub consumes one route slot")
+equal(#hubs.stops,1,"empty-log route stops after first quest hub; other locations remain discoverable")
 equal(hubs.stops[1].pickupCount,3,"three quests at same giver")
 equal(hubs.stops[1].pickupNames[2],"Hub quest B","hub lists other quests")
 assert(route:Describe(hubs.stops[1]):find("3 possible quests",1,true),
