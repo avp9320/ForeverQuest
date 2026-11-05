@@ -258,7 +258,8 @@ local function CollectQuests()
                 end
             end
             if not waypointMap and Planner and Planner.GetActivePosition then
-                local location = Planner:GetActivePosition(questID, complete, currentMap)
+                local location = Planner:GetActivePosition(
+                    questID, complete, currentMap, GetObjectives(questID))
                 if location then
                     waypointMap, waypointX, waypointY = location.mapID, location.x, location.y
                     waypointSource = "database"
