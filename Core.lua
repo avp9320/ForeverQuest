@@ -1063,7 +1063,39 @@ local function ExplainFocus()
         .. ". /fq route lists alternatives.")
 end
 
+local function ObserveFocusedProgress()
+    local stop=state.routeStop
+    if not Knowledge or not stop or stop.kind~="objective"
+        or type(stop.targetName)~="string" or stop.goalKey=="main" then
+        return
+    end
+    local mapID=GetBestMap()
+    if stop.mapID~=mapID then return end
+    local x,y=MapXY(mapID)
+    if not x or not y then return end
+    local objectives=GetObjectives(stop.questID)
+    if type(objectives)~="table" then return end
+    for _,objective in ipairs(objectives) do
+        if type(objective)=="table" then
+            local label=objective.text or objective.description
+            if type(label)=="string"
+                and label:lower():find(stop.targetName:lower(),1,true) then
+                local amount=tonumber(objective.numFulfilled)
+                    or tonumber(label:match("(%d+)%s*/%s*%d+"))
+                if amount then
+                    Knowledge:ObserveProgress(ForeverQuestDB,
+                        stop.questID,stop.goalKey,amount,mapID,x,y)
+                end
+                return
+            end
+        end
+    end
+end
+
 RefreshFocus = function()
+    -- Catch the objective increment while still pointing at its previous
+    -- location, before the AUTO route might switch targets.
+    ObserveFocusedProgress()
     CollectQuests()
     RefreshFutureQuests()
     state.nextZones = nil
@@ -1182,6 +1214,7 @@ RefreshFocus = function()
     end
 
     SetFocus(state.pickup and nil or quest)
+    ObserveFocusedProgress()
     if Items and Items.Update then
         Items:Update(state.pickup and nil or quest)
     end
@@ -1432,8 +1465,21 @@ SlashCmdList.FOREVERQUEST = function(message)
         else
             local flights=0
             for _ in pairs(ForeverQuestDB.flightPaths or {}) do flights=flights+1 end
-            Print(string.format("Account observed: %d quest pickups, %d turn-ins, %d known flight paths.",
-                counts.pickup,counts.turnin,flights))
+            Print(string.format("Account observed: %d pickups, %d turn-ins, %d objective areas, %d taxi nodes.",
+                counts.pickup,counts.turnin,counts.objective or 0,flights))
+        end
+    elseif command == "here" then
+        local stop=state.routeStop
+        local mapID=GetBestMap()
+        local x,y=MapXY(mapID)
+        if stop and stop.kind=="objective" and stop.goalKey~="main"
+            and stop.mapID==mapID and x and y and Knowledge then
+            Knowledge:Observe(ForeverQuestDB,"objective",
+                stop.questID,mapID,x,y,stop.goalKey)
+            RefreshFocus()
+            Print("Learned this objective's current location for your other characters.")
+        else
+            Print("Select a specific quest objective and stand at its actual location first.")
         end
     elseif command == "knowledge clear" then
         if Knowledge then Knowledge:Clear(ForeverQuestDB) end
@@ -1533,7 +1579,7 @@ SlashCmdList.FOREVERQUEST = function(message)
         frame:SetPoint(defaults.point, UIParent, defaults.relativePoint, defaults.x, defaults.y)
         Print("position reset")
     else
-        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq why, /fq mode fast|balanced|complete, /fq avoid, /fq unavoid, /fq zones, /fq plan, /fq skip, /fq unskip, /fq knowledge, /fq data, /fq navigate, /fq debug, /fq reset")
+        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq why, /fq mode fast|balanced|complete, /fq avoid, /fq unavoid, /fq zones, /fq plan, /fq skip, /fq unskip, /fq here, /fq knowledge, /fq data, /fq navigate, /fq debug, /fq reset")
     end
 end
 
