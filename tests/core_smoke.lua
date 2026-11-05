@@ -155,4 +155,28 @@ card.scripts.OnClick(card,"RightButton")
 assert(ForeverQuestDB.mode=="AUTO","automatic mode restored after multi-step test")
 SlashCmdList.FOREVERQUEST("why") -- explain selected automatic objective safely
 
+-- Client native waypoint should not hide the quest's other distinct
+-- database goals. Nearby native coordinates are attached to the matching
+-- goal; a very different native coordinate should be left authoritative
+-- rather than guessed to refer to a Classic objective.
+objectiveRows[1]={text="0/3 First Target",finished=false}
+objectiveRows[2]={text="0/4 Second Target",finished=false}
+C_QuestLog.GetNextWaypointForMap=function(questID,mapID)
+    if questID==100 then return .405,.605 end
+end
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+assert(card.objective:GetText()=="0/3 First Target",
+    "client waypoint and multiple goals coexist")
+card.scripts.OnClick(card,"LeftButton")
+assert(card.objective:GetText()=="0/4 Second Target",
+    "second database goal remains selectable with native waypoint")
+card.scripts.OnClick(card,"RightButton")
+C_QuestLog.GetNextWaypointForMap=function(questID,mapID)
+    if questID==100 then return .80,.80 end
+end
+core.scripts.OnEvent(core,"QUEST_LOG_UPDATE")
+assert(card.distance:GetText()=="30 yd",
+    "far-away client waypoint is retained over unverified database points")
+C_QuestLog.GetNextWaypointForMap=nil
+
 print("ForeverQuest Core mock game/UI smoke test passed")
