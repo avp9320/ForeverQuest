@@ -34,6 +34,7 @@ local function append(all, seen, kind, id, name, mapID, x, y,
         sourceKind = goal and goal.kind,
         waypointSource = goal and goal.waypointSource,
         giverID = kind == "pickup" and goal and goal.giverID or nil,
+        giverName = kind == "pickup" and goal and goal.giverName or nil,
         suggestedGroup = goal and goal.suggestedGroup or nil,
         isElite = goal and goal.isElite or nil,
     }
