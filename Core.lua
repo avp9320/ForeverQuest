@@ -363,6 +363,9 @@ local function CollectQuests()
                 mapDistance = mapDistance,
                 score = score,
                 logIndex = index,
+                suggestedGroup = info.suggestedGroup,
+                questLevel = info.level or info.difficultyLevel,
+                isElite = false,
             })
         end
     end
@@ -535,11 +538,23 @@ local function IgnoredPickups()
     return account[key]
 end
 
+local function AvoidedQuests()
+    if not ForeverQuestDB then return {} end
+    ForeverQuestDB.avoidedByCharacter = ForeverQuestDB.avoidedByCharacter or {}
+    local key = (UnitGUID and UnitGUID("player"))
+        or ((UnitName and UnitName("player") or "player")
+            .. "-" .. (GetRealmName and GetRealmName() or "realm"))
+    local registry = ForeverQuestDB.avoidedByCharacter
+    registry[key] = registry[key] or {}
+    return registry[key]
+end
+
 local function RefreshFutureQuests()
     if not Planner or not Planner.Available or not Planner:Available() then return end
     local active = {}
     for _, quest in ipairs(state.quests) do active[quest.questID] = true end
     for id in pairs(IgnoredPickups()) do active[id] = true end
+    for id in pairs(AvoidedQuests()) do active[id] = true end
     Planner:Scan(GetBestMap(), UnitLevel("player"), active)
 end
 
@@ -570,13 +585,20 @@ local function PrintPlan()
 end
 
 local function PickAutoQuest()
-    local best = state.quests[1]
+    local best
+    for _, candidate in ipairs(state.quests) do
+        if not AvoidedQuests()[candidate.questID] then
+            best = candidate
+            break
+        end
+    end
     if not best then
         return nil
     end
 
     local current = FindQuest(state.focusQuestID)
-    if current and ForeverQuestDB.mode == "AUTO" then
+    if current and not AvoidedQuests()[current.questID]
+        and ForeverQuestDB.mode == "AUTO" then
         -- A quest becoming ready for turn-in must immediately yield to a
         -- nearby unfinished quest, even if the old quest is very close.
         -- Do not let the anti-thrashing rule preserve the completed quest.
@@ -908,7 +930,11 @@ local function BuildRoute()
     if Planner and Planner.Available and Planner:Available() then
         pickups = Planner:GetNearby(mapID, 35)
     end
-    local plan = Route:Build(state.quests, pickups, mapID, px, py)
+    local plan = Route:Build(state.quests, pickups, mapID, px, py, {
+        level = UnitLevel and UnitLevel("player") or 1,
+        mode = ForeverQuestDB.routeMode or "balanced",
+        avoided = AvoidedQuests(),
+    })
     state.routePlan = plan
     return plan
 end
@@ -1008,6 +1034,14 @@ local function ExplainFocus()
             .. " other tasks appear in the same area"
     end
     local confidence = stop.confidence or "unknown"
+    local Strategy = _G.ForeverQuestStrategy
+    if Strategy and Strategy.Explain then
+        why = why .. ". " .. Strategy:Explain(stop, {
+            level=UnitLevel and UnitLevel("player") or 1,
+            mode=ForeverQuestDB.routeMode or "balanced",
+            avoided=AvoidedQuests(),
+        })
+    end
     Print(why .. ". Location source: " .. confidence
         .. ". /fq route lists alternatives.")
 end
@@ -1350,6 +1384,36 @@ SlashCmdList.FOREVERQUEST = function(message)
         PrintRoute()
     elseif command == "why" then
         ExplainFocus()
+    elseif command == "mode" then
+        Print("Questing preference: " .. (ForeverQuestDB.routeMode or "balanced")
+            .. ". Options: /fq mode fast, /fq mode balanced, /fq mode complete")
+    elseif command == "mode fast" or command == "mode balanced"
+        or command == "mode complete" then
+        ForeverQuestDB.routeMode = command:sub(6)
+        state.routeKey = nil
+        state.routeStop = nil
+        RefreshFocus()
+        Print("Questing preference: " .. ForeverQuestDB.routeMode)
+    elseif command == "avoid" then
+        local stop = state.routeStop
+        local quest = stop and stop.questID and FindQuest(stop.questID)
+        if quest then
+            AvoidedQuests()[quest.questID] = true
+            state.routeStop, state.routeKey = nil, nil
+            if Planner then Planner:Invalidate() end
+            ForeverQuestDB.mode = "AUTO"
+            RefreshFocus()
+            Print("Avoiding " .. quest.title
+                .. " in AUTO. /fq unavoid restores avoided quests.")
+        else
+            Print("Select an accepted quest objective before using /fq avoid.")
+        end
+    elseif command == "unavoid" then
+        local avoided = AvoidedQuests()
+        for id in pairs(avoided) do avoided[id] = nil end
+        if Planner then Planner:Invalidate() end
+        RefreshFocus()
+        Print("Cleared your character's avoided quests.")
     elseif command == "zones" then
         if not Planner or not Planner.GetNextZones then
             Print("Bundled zone advisor is unavailable.")
@@ -1407,7 +1471,7 @@ SlashCmdList.FOREVERQUEST = function(message)
         frame:SetPoint(defaults.point, UIParent, defaults.relativePoint, defaults.x, defaults.y)
         Print("position reset")
     else
-        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq why, /fq zones, /fq plan, /fq skip, /fq unskip, /fq data, /fq area, /fq navigate, /fq debug, /fq reset")
+        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq why, /fq mode fast|balanced|complete, /fq avoid, /fq unavoid, /fq zones, /fq plan, /fq skip, /fq unskip, /fq data, /fq navigate, /fq debug, /fq reset")
     end
 end
 
