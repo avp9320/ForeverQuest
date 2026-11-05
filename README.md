@@ -7,6 +7,16 @@ overlap, when to turn in, and where to quest afterward. It keeps the interface
 small: one two-line objective card, with optional hover details and a secure
 quest-item button. Nothing is continuously posted to chat.
 
+## v1.0.1 — readable navigation and map waypoints
+
+- The compact card now describes the **quest giver**, not just the quest title and map coordinates.
+- When a source-backed landmark is known, it identifies that too (for example, **Furl Scornbrow — Razor Hill watchtower, upper level** for *Carry Your Weight*).
+- The upper-right indicator now shows an eight-way compass bearing and **approximate straight-line yards** when the client exposes map world size; otherwise it shows the direction with map coordinates.
+- A larger, higher-contrast rotating arrow points toward the target as the character moves.
+- In AUTO, ForeverQuest places a Blizzard map waypoint for the selected destination only when doing so won't replace a map pin you placed yourself. No extra map addon is required.
+- Shift-left-click the card to explicitly mark a destination; `/fq pin manual` turns off automatic pins, and `/fq pin auto` restores them.
+- Locations remain **search areas**, and straight-line yardage is **not walking distance**. Caves, floors and obstacles can still require a detour.
+
 ## Version 1.0 — core leveling assistant
 
 ### Entire quest database inside one addon
@@ -87,8 +97,10 @@ source-code ZIP: the generated `CatalogData.lua` is included in the
 
 - **Left click / mouse wheel** — cycle current planned actions.
 - **Right click** — resume automatic route selection.
-- **Shift + left click** — navigate to selected quest/pickup (explicit
-  waypoint when available).
+- **Shift + left click** — place an explicit Blizzard map pin for the selected
+  quest/pickup; this may replace a pin you set manually.
+- **AUTO map waypoints** — enabled by default for destinations when the client
+  supports them; won't overwrite a personal map pin.
 - **Hover** — explanation, related objectives and short route preview.
 - **Quest-item icon** — use the relevant special quest item if supplied
   by WoW's quest log.
@@ -96,6 +108,8 @@ source-code ZIP: the generated `CatalogData.lua` is included in the
 ## Slash commands
 
 - `/fq` — help.
+- `/fq pin auto` / `/fq pin manual` — enable or disable automatic
+  Blizzard map pins without affecting manual Shift-click navigation.
 - `/fq route` — print up to five approximate same-map stops and nearby tasks.
 - `/fq why` — explain why AUTO chose this action.
 - `/fq zones` — show connected zones with plausible quests and handoff notes.
