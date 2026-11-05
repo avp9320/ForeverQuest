@@ -5,6 +5,7 @@ local Planner = _G.ForeverQuestPlanner
 local Route = _G.ForeverQuestRoute
 local Knowledge = _G.ForeverQuestKnowledge
 local Travel = _G.ForeverQuestTravel
+local Items = _G.ForeverQuestItems
 local VERSION = "0.3.0"
 
 local defaults = {
@@ -623,6 +624,7 @@ local frame = CreateFrame("Button", "ForeverQuestFocusFrame", UIParent, "Backdro
 -- Two compact tracker lines: quest + distance, then the current objective.
 -- Don't impersonate a full quest-log window or show an always-on AUTO badge.
 frame:SetSize(258, 46)
+if Items and Items.Create then Items:Create(frame) end
 frame:SetFrameStrata("MEDIUM")
 frame:SetClampedToScreen(true)
 frame:RegisterForClicks("LeftButtonUp", "RightButtonUp")
@@ -1167,6 +1169,9 @@ RefreshFocus = function()
     end
 
     SetFocus(state.pickup and nil or quest)
+    if Items and Items.Update then
+        Items:Update(state.pickup and nil or quest)
+    end
 
     if state.pickup then
         local pickup = state.pickup
@@ -1336,7 +1341,10 @@ frame:SetScript("OnUpdate", function(_, elapsed)
         UpdateArrow()
     end
 
-    if state.refreshElapsed >= 1.0 then
+    -- Live quest events trigger immediate refreshes; the background tick
+    -- only needs to adapt periodically to movement and async DB scans.
+    -- Previously we rebuilt ~4,000-quest plan context every SECOND.
+    if state.refreshElapsed >= 3.0 then
         state.refreshElapsed = 0
         RefreshFocus()
     end
@@ -1537,6 +1545,9 @@ FQ:SetScript("OnEvent", function(_, event, ...)
                 event == "QUEST_TURNED_IN" or event == "PLAYER_LEVEL_UP"
             ) then Planner:Invalidate() end
             RefreshFocus()
+            if event=="PLAYER_REGEN_ENABLED" and Items and Items.Refresh then
+                Items:Refresh()
+            end
         end
     end
 end)
