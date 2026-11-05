@@ -53,6 +53,30 @@ local passerby={{questID=304,name="Passing quest giver",mapID=1411,x=.645,y=.648
 local along=route:Build(onWay,passerby,1411,.4,.6)
 equal(#along.stops,2,"pickups near active objective remain in route")
 
+-- Clustering should decrease as tasks are visited in the route, not
+-- keep pulling the player back toward already planned/visited stops.
+local sameArea = {
+    {questID=401,name="Gather A",mapID=1411,x=.400,y=.400},
+    {questID=402,name="Gather B",mapID=1411,x=.403,y=.400},
+    {questID=403,name="Gather C",mapID=1411,x=.406,y=.400},
+}
+local clustered = route:Build({},sameArea,1411,.4,.4)
+equal(#clustered.stops,3,"three nearby pickup stops")
+equal(clustered.stops[1].overlapping,2,"first stop has two pending nearby goals")
+equal(clustered.stops[2].overlapping,1,"second stop has one pending nearby goal")
+equal(clustered.stops[3].overlapping,0,"last stop does not count visited goals")
+
+-- Small native vs provisional distance difference: trust the client.
+local trusted = route:Build({
+    {questID=411,title="Client target",complete=false,
+        waypointMap=1411,waypointX=.450,waypointY=.450,
+        waypointSource="client"},
+    {questID=412,title="Approximate target",complete=false,
+        waypointMap=1411,waypointX=.446,waypointY=.450,
+        waypointSource="database"},
+}, {},1411,.4,.45)
+equal(trusted.stops[1].questID,411,"prefer nearby confirmed client position")
+
 local playerLevel = 8
 local finished = {[105]=true}
 UnitRace = function() return "Orc","Orc",2 end
