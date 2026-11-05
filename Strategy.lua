@@ -109,6 +109,29 @@ function Strategy:Assess(stop, opts)
         modifier = modifier + math.min(0.025, unlocks * 0.007)
     end
 
+    -- QuestieDB knows a subset of quests deliberately designed as a
+    -- shared objective group. Completing these while several are active
+    -- reduces return trips without claiming identical spawn positions.
+    local inGroup = questField(id,"inGroupWith")
+    if type(inGroup)=="table" and type(opts.active)=="table"
+        and stop.kind=="objective" then
+        local overlap=0
+        for _,other in ipairs(inGroup) do
+            if opts.active[other] then overlap=overlap+1 end
+        end
+        if overlap>0 then
+            modifier=modifier+math.min(.045,overlap*.018)
+            details[#details+1]="Other active quests share this quest group"
+        end
+    end
+    if stop.kind=="pickup" then
+        local breadcrumb=tonumber(questField(id,"breadcrumbForQuestId"))
+        if breadcrumb and breadcrumb>0 then
+            modifier=modifier-.025
+            details[#details+1]="Optional breadcrumb to another quest"
+        end
+    end
+
     if mode == "fast" then
         -- Fewer speculative pickups; prioritize known work and turn-ins.
         if stop.kind == "pickup" then modifier = modifier - 0.045 end
