@@ -905,23 +905,65 @@ RefreshFocus = function()
     RefreshFutureQuests()
     state.nextZones = nil
 
-    local quest, manualPickup
+    -- Rebuild in both AUTO and MANUAL modes. A manual stop should follow
+    -- changing quest progress, rather than staying frozen at old coordinates.
+    local plan = BuildRoute()
+    local quest, manualPickup, manualStop
     if ForeverQuestDB.mode == "MANUAL" then
-        if ForeverQuestDB.manualKind == "pickup" then
+        if ForeverQuestDB.manualKind then
+            for _, stop in ipairs((plan and plan.stops) or {}) do
+                if stop.kind == ForeverQuestDB.manualKind
+                    and stop.questID == ForeverQuestDB.manualQuestID
+                    and stop.goalKey == (ForeverQuestDB.manualGoalKey or "main") then
+                    manualStop = stop
+                    break
+                end
+            end
+
+            -- The desired objective might leave the top-five suggested
+            -- stops as the character moves. Retain a deliberately selected
+            -- objective as long as it is still unfinished.
             local choice = state.manualChoice
-            if choice and choice.questID == ForeverQuestDB.manualQuestID
-                and choice.mapID == GetBestMap()
-                and not FindQuest(choice.questID) then
-                manualPickup = {
-                    questID = choice.questID, name = choice.name,
-                    x = choice.x, y = choice.y, mapID = choice.mapID,
-                    confidence = choice.confidence, kind = "quest starter",
-                    distance = choice.distance,
-                }
-            else
+            if not manualStop and choice
+                and choice.kind == ForeverQuestDB.manualKind
+                and choice.questID == ForeverQuestDB.manualQuestID
+                and choice.goalKey == (ForeverQuestDB.manualGoalKey or "main") then
+                if choice.kind == "pickup" and choice.mapID == GetBestMap()
+                    and not FindQuest(choice.questID)
+                    and not IgnoredPickups()[choice.questID] then
+                    manualStop = choice
+                elseif choice.kind == "objective" then
+                    local active = FindQuest(choice.questID)
+                    if active and not active.complete then
+                        for _, point in ipairs(active.goalPoints or {}) do
+                            if point.goalKey == choice.goalKey then
+                                manualStop = choice
+                                manualStop.x, manualStop.y = point.x, point.y
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+
+            if manualStop then
+                if manualStop.kind == "pickup" then
+                    manualPickup = {
+                        questID = manualStop.questID, name = manualStop.name,
+                        x = manualStop.x, y = manualStop.y, mapID = manualStop.mapID,
+                        confidence = manualStop.confidence,
+                        kind = "quest starter", distance = manualStop.distance,
+                    }
+                else
+                    quest = FindQuest(manualStop.questID)
+                    if not quest then manualStop = nil end
+                end
+            end
+            if not manualStop then
                 ForeverQuestDB.mode = "AUTO"
                 ForeverQuestDB.manualQuestID = nil
                 ForeverQuestDB.manualKind = nil
+                ForeverQuestDB.manualGoalKey = nil
                 state.manualChoice = nil
             end
         else
@@ -936,11 +978,8 @@ RefreshFocus = function()
 
     if not quest and not manualPickup then quest = PickAutoQuest() end
 
-    -- A nearby unaccepted quest is often worth grabbing on the way, but
-    -- don't interrupt an active objective or nearby completed turn-in.
     state.pickup = manualPickup
     if ForeverQuestDB.mode == "AUTO" then
-        local plan = BuildRoute()
         local stop = RouteSelection(plan)
         state.routeStop = stop
         if stop then
@@ -949,14 +988,27 @@ RefreshFocus = function()
                     questID = stop.questID, name = stop.name,
                     x = stop.x, y = stop.y, mapID = stop.mapID,
                     confidence = stop.confidence, kind = "quest starter",
-                    distance = stop.distance
+                    distance = stop.distance,
                 }
             else
                 quest = FindQuest(stop.questID) or quest
             end
         end
     else
-        state.routeStop = nil
+        state.routeStop = manualStop
+    end
+
+    -- A selected individual target must drive the arrow, coordinates and
+    -- navigation too. Previously only the route list changed while the
+    -- quest card kept pointing at the quest's *first* objective.
+    local selected = state.routeStop
+    if quest and selected and selected.kind == "objective"
+        and selected.questID == quest.questID and selected.goalKey ~= "main" then
+        quest.waypointMap = selected.mapID
+        quest.waypointX, quest.waypointY = selected.x, selected.y
+        quest.waypointSource = "database"
+        quest.waypointArea = selected.targetName or selected.area
+        quest.waypointConfidence = selected.confidence
     end
 
     SetFocus(state.pickup and nil or quest)
