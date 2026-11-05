@@ -44,4 +44,18 @@ assert(#options > 0, "no starter quests found in Durotar from bundled data")
 assert(options[1].name and options[1].mapID == 1411,
     "bad candidate quest mapping")
 assert(not _G.LibQuestieDB, "external QuestieDB runtime must not be loaded")
+
+-- A published Forever pickup landmark should survive the standalone
+-- catalog and planner path, including a useful NPC name. No external
+-- addon or hardcoded generic tracker location.
+local known
+for _, candidate in ipairs(planner:GetNearby(1411,500)) do
+    if candidate.questID == 791 then known=candidate; break end
+end
+assert(known and math.abs(known.x-.499)<.002
+    and math.abs(known.y-.404)<.002,
+    "Carry Your Weight starter should use published Forever waypoint")
+assert(known.giverName=="Furl Scornbrow"
+    and known.area:find("watchtower",1,true),
+    "Carry Your Weight starter should identify the landmark")
 print(string.format("Standalone catalog integration passed: %d quests, %d areas, %d exploration triggers, %d nearby candidates",#ids,n,triggers,#options))
