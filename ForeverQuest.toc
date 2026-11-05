@@ -8,8 +8,12 @@
 QuestData.lua
 CatalogData.lua
 CatalogRuntime.lua
+Travel.lua
+Knowledge.lua
 QuestPlanner.lua
+Strategy.lua
 Route.lua
+QuestItems.lua
 Core.lua
 Theme.lua
 Debug.lua
