@@ -160,7 +160,11 @@ for id in pairs(neededNpc) do
     if valid(row) then
         local spawns = sampledSpawns(field(row, raw.npcKeys, "spawns"))
         if spawns then
-            npcs[id] = {name = field(row, raw.npcKeys, "name"), spawns = spawns}
+            npcs[id] = {
+                name = field(row, raw.npcKeys, "name"),
+                spawns = spawns,
+                friendlyToFaction = field(row, raw.npcKeys, "friendlyToFaction"),
+            }
         end
     end
 end
