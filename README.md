@@ -4,7 +4,7 @@ A compact smart quest focus and navigation addon for **WoW: Forever**.
 
 ForeverQuest is built around one idea: **lots of quest information should be available, but very little of it should need to stay on your screen.**
 
-## v0.5.0 — self-contained quest planner
+## v0.5.1 — standalone quest planner with neighboring-zone lookahead
 
 **ForeverQuest is now a standalone addon.** The release ZIP includes its own Classic + Forever quest catalog: 4,244 quests and thousands of quest-related NPCs, objects and item-drop references from a pinned factual snapshot. You do **not** need Questie, QuestieDB, or any other quest addon installed.
 
@@ -32,8 +32,12 @@ ForeverQuest is built around one idea: **lots of quest information should be ava
 - `/fq route` prints your next five approximate stops; `/fq navigate` sets an explicit waypoint to a selected estimated objective.
 - `/fq skip` hides a wrong/unavailable pickup for the current character; `/fq unskip` restores your skipped pickup candidates.
 - No persistent map pin clutter; user waypoints are only set on request.
+- If there are no useful same-map stops, the compact card can suggest a **neighboring zone** with plausible quest starters rather than just saying your quest log is empty.
+- `/fq zones` shows nearby potential leveling zones and approximate counts of eligible quests. It is explicitly **not** a travel route; availability is provisional.
+- Starter suggestions now check recorded NPC friendliness against your faction and skip event-gated quests when the client cannot verify the event.
 
-GitHub Actions validates every release using Lua 5.1 syntax, route and data-provider tests, plus a mocked-client UI smoke test. These are not substitutes for live WoW verification.
+
+GitHub Actions validates every release using Lua 5.1 syntax, route and data-provider tests, a real bundled-catalog integration test, a mocked-client UI smoke test, and ZIP contents checks. These are not substitutes for live WoW verification.
 
 These are **same-map map-coordinate estimates**, not walkable paths. The system cannot detect blocked terrain, precise mob spawn phases, or every Forever quest-giver requirement. It deliberately labels database pickup suggestions as possible, never guaranteed.
 
@@ -79,6 +83,7 @@ This is still a same-map, multi-stop planner, not a validated 1–60 cross-zone 
 - `/fq lock` - lock the card in place
 - `/fq auto` - return to automatic quest selection
 - `/fq route` - suggest a short multi-stop route across active quests and unaccepted pickups
+- `/fq zones` - inspect possible quests in neighboring leveling zones
 - `/fq skip` - dismiss the currently suggested possible pickup for this character
 - `/fq unskip` - restore all previously skipped possible pickups for this character
 - `/fq plan` - list potential unaccepted nearby quests from ForeverQuest's built-in catalog
