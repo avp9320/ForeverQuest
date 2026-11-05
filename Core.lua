@@ -717,7 +717,9 @@ frame:SetScript("OnClick", function(_, button)
     elseif button == "RightButton" then
         ForeverQuestDB.mode = "AUTO"
         ForeverQuestDB.manualQuestID = nil
-        SetFocus(PickAutoQuest())
+        ForeverQuestDB.manualKind = nil
+        state.manualChoice = nil
+        if RefreshFocus then RefreshFocus() end
         Print("AUTO mode")
     elseif button == "LeftButton" then
         ManualCycle(1)
@@ -860,26 +862,44 @@ local function PrintRoute()
     end
 end
 
-local function RefreshFocus()
+RefreshFocus = function()
     CollectQuests()
     RefreshFutureQuests()
 
-    local quest
+    local quest, manualPickup
     if ForeverQuestDB.mode == "MANUAL" then
-        quest = FindQuest(ForeverQuestDB.manualQuestID)
-        if not quest then
-            ForeverQuestDB.mode = "AUTO"
-            ForeverQuestDB.manualQuestID = nil
+        if ForeverQuestDB.manualKind == "pickup" then
+            local choice = state.manualChoice
+            if choice and choice.questID == ForeverQuestDB.manualQuestID
+                and choice.mapID == GetBestMap()
+                and not FindQuest(choice.questID) then
+                manualPickup = {
+                    questID = choice.questID, name = choice.name,
+                    x = choice.x, y = choice.y, mapID = choice.mapID,
+                    confidence = choice.confidence, kind = "quest starter",
+                    distance = choice.distance,
+                }
+            else
+                ForeverQuestDB.mode = "AUTO"
+                ForeverQuestDB.manualQuestID = nil
+                ForeverQuestDB.manualKind = nil
+                state.manualChoice = nil
+            end
+        else
+            quest = FindQuest(ForeverQuestDB.manualQuestID)
+            if not quest then
+                ForeverQuestDB.mode = "AUTO"
+                ForeverQuestDB.manualQuestID = nil
+                state.manualChoice = nil
+            end
         end
     end
 
-    if not quest then
-        quest = PickAutoQuest()
-    end
+    if not quest and not manualPickup then quest = PickAutoQuest() end
 
     -- A nearby unaccepted quest is often worth grabbing on the way, but
     -- don't interrupt an active objective or nearby completed turn-in.
-    state.pickup = nil
+    state.pickup = manualPickup
     if ForeverQuestDB.mode == "AUTO" then
         local plan = BuildRoute()
         local stop = RouteSelection(plan)
@@ -1057,6 +1077,8 @@ SlashCmdList.FOREVERQUEST = function(message)
     elseif command == "auto" then
         ForeverQuestDB.mode = "AUTO"
         ForeverQuestDB.manualQuestID = nil
+        ForeverQuestDB.manualKind = nil
+        state.manualChoice = nil
         RefreshFocus()
         Print("AUTO mode")
     elseif command == "area" then
@@ -1075,6 +1097,10 @@ SlashCmdList.FOREVERQUEST = function(message)
             if Planner then Planner:Invalidate() end
             state.pickup = nil
             state.routeStop = nil
+            state.manualChoice = nil
+            ForeverQuestDB.mode = "AUTO"
+            ForeverQuestDB.manualKind = nil
+            ForeverQuestDB.manualQuestID = nil
             RefreshFocus()
             Print("Skipped provisional pickup: " .. tostring(name)
                 .. ". /fq unskip restores hidden suggestions.")
