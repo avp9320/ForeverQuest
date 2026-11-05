@@ -80,9 +80,20 @@ local function groupPickupHubs(candidates)
             -- catalog may be approximate and should not invent shared givers.
             local sameGiver = candidate.giverID and existing.giverID
                 and candidate.giverID == existing.giverID
-            local unknownGiver = not candidate.giverID or not existing.giverID
+                and candidate.kind == existing.kind
+            -- A missing NPC ID is not evidence that two offers belong to
+            -- the same NPC. Only coalesce unknown IDs when BOTH entries
+            -- explicitly name the same giver of the same entity type.
+            -- Otherwise retain independent collection stops, even when
+            -- inherited Classic coordinates happen to overlap.
+            local sameNamedGiver = not candidate.giverID
+                and not existing.giverID
+                and type(candidate.giverName) == "string"
+                and candidate.giverName ~= ""
+                and candidate.giverName == existing.giverName
+                and candidate.sourceKind == existing.sourceKind
             local radius = sameGiver and PICKUP_HUB or 0.002
-            if (sameGiver or unknownGiver)
+            if (sameGiver or sameNamedGiver)
                 and d <= radius
                 and (not bestDistance or d < bestDistance) then
                 hub, bestDistance = existing, d
