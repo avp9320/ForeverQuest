@@ -294,6 +294,13 @@ function Planner:GetActivePositions(questID, complete, mapID, statuses, maxCount
     end
 
     if complete then
+        local Knowledge = _G.ForeverQuestKnowledge
+        local learned = Knowledge and Knowledge:Get(_G.ForeverQuestDB,"turnin",questID)
+        if learned and learned.mapID == mapID then
+            learned.entityName = "Previously observed turn-in"
+            add("turnin","Previously observed turn-in","Turn in quest",learned)
+            return result
+        end
         -- Multiple finishers are usually alternatives; never route the player
         -- to all of them. Choose the nearest known valid turn-in location.
         local npc, npcD = bestLocation(groups[1], lib.Npc, "turn-in NPC")
@@ -667,9 +674,20 @@ function Planner:Scan(mapID, level, active, force)
                 local name = get(lib.Quest, id, "name")
                 if type(name) ~= "string" or name == "" then return nil end
                 local start = starter(lib, id, mapID, maps, playerX, playerY)
+                local Knowledge = _G.ForeverQuestKnowledge
+                local learned = Knowledge and Knowledge:Get(_G.ForeverQuestDB,"pickup",id)
+                if learned and learned.mapID == mapID then
+                    start = start or {
+                        questID=id,mapID=mapID,kind="previously observed starter",
+                    }
+                    start.x, start.y = learned.x, learned.y
+                    start.confidence = "account-observed"
+                end
                 if start then
                     start.name = name
-                    start.source = "ForeverQuest bundled Classic/Forever baseline"
+                    start.source = start.confidence == "account-observed"
+                        and "Observed on this account"
+                        or "ForeverQuest bundled Classic/Forever baseline"
                 end
                 return start
             end)
