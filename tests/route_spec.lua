@@ -8,6 +8,35 @@ end
 dofile("Route.lua")
 local route = _G.ForeverQuestRoute
 
+-- A crowded objective can be deferred without hiding its entire quest.
+-- Other eligible accepted work wins; the objective returns when no alternate
+-- safe work remains, so the character cannot get stranded.
+local crowded = {
+    {questID=801,title="Hard eggs",complete=false,
+        waypointMap=1411,waypointX=.401,waypointY=.601,
+        goalPoints={{mapID=1411,x=.401,y=.601,
+            goalKey="item:4890",targetName="Egg",kind="item drop object",
+            confidence="client"}}},
+    {questID=802,title="Nearby easy enemies",complete=false,
+        waypointMap=1411,waypointX=.415,waypointY=.611,
+        goalPoints={{mapID=1411,x=.415,y=.611,
+            goalKey="enemy:66",targetName="Boar",kind="enemy",
+            confidence="client"}}},
+}
+local deferredKey = "objective:801:item:4890"
+local deferredPlan = route:Build(crowded,{},1411,.4,.6,{
+    deferred={[deferredKey]=true},level=10,groupSize=1})
+equal(#deferredPlan.stops,1,"deferred objective omitted while other safe work exists")
+equal(deferredPlan.stops[1].questID,802,"other eligible objective takes priority")
+local resumedPlan = route:Build({crowded[1]}, {},1411,.4,.6,{
+    deferred={[deferredKey]=true},level=10,groupSize=1})
+equal(resumedPlan.stops[1].questID,801,
+    "deferred goal returns automatically when other eligible work is exhausted")
+local immediatePlan = route:Build(crowded, {},1411,.4,.6,{
+    level=10,groupSize=1})
+equal(immediatePlan.stops[1].questID,801,
+    "without a deferral, nearby ground object remains eligible")
+
 local active = {
     {questID=1, title="Far objective", complete=false, waypointMap=1411,
         waypointX=.76, waypointY=.78, waypointSource="client"},
