@@ -7,6 +7,7 @@ local Knowledge = _G.ForeverQuestKnowledge
 local Travel = _G.ForeverQuestTravel
 local Items = _G.ForeverQuestItems
 local Navigation = _G.ForeverQuestNavigation
+local Hints = _G.ForeverQuestObjectiveHints
 local VERSION = "1.0.5"
 -- Read the TOC version when the client exposes addon metadata. This avoids
 -- misleading "v0.3.0 loaded" messages after a successful WoWUp update.
@@ -526,6 +527,17 @@ local function AvoidedQuests()
     return registry[key]
 end
 
+local function DeferredObjectives()
+    if not ForeverQuestDB then return {} end
+    ForeverQuestDB.deferredByCharacter = ForeverQuestDB.deferredByCharacter or {}
+    local key = (UnitGUID and UnitGUID("player"))
+        or ((UnitName and UnitName("player") or "player")
+            .. "-" .. (GetRealmName and GetRealmName() or "realm"))
+    local registry = ForeverQuestDB.deferredByCharacter
+    registry[key] = registry[key] or {}
+    return registry[key]
+end
+
 local function RefreshFutureQuests()
     if not Planner or not Planner.Available or not Planner:Available() then return end
     local active = {}
@@ -853,6 +865,19 @@ frame:SetScript("OnEnter", function(self)
         GameTooltip:AddLine("Classic/Forever database prediction; offers not confirmed.",
             0.75, 0.69, 0.45, true)
     end
+    local hint = Hints and Hints.Get and Hints:Get(state.routeStop)
+    if hint then
+        GameTooltip:AddLine("Search hint (not an exact spawn):", 0.98, 0.82, 0.42)
+        GameTooltip:AddLine(hint.search, 0.95, 0.95, 0.80, true)
+        if hint.crowd then
+            GameTooltip:AddLine(hint.crowd, 0.88, 0.76, 0.63, true)
+        end
+        if hint.source then
+            GameTooltip:AddLine(hint.source, 0.60, 0.72, 0.82, true)
+        end
+        GameTooltip:AddLine("Too crowded? /fq later defers this goal until other work is exhausted.",
+            0.63, 0.90, 0.70, true)
+    end
     local quest = FindQuest(state.focusQuestID)
     if quest then
         if quest.waypointText then
@@ -956,6 +981,7 @@ local function BuildRoute()
         level = UnitLevel and UnitLevel("player") or 1,
         mode = ForeverQuestDB.routeMode or "balanced",
         avoided = AvoidedQuests(),
+        deferred = DeferredObjectives(),
         active = active,
         groupSize = math.max(1,(GetNumGroupMembers and GetNumGroupMembers()) or 1),
         -- Stay with the current unfinished destination instead of treating
@@ -1515,6 +1541,13 @@ local function ReportState()
         Print("No current coordinate-backed route stop.")
     end
     if state.mapCaution then Print("Navigation caution: "..state.mapCaution) end
+    if stop and Hints and Hints.Get then
+        local hint = Hints:Get(stop)
+        if hint then
+            Print("Search hint: " .. hint.search)
+            if hint.crowd then Print("Crowding: " .. hint.crowd) end
+        end
+    end
     local count=Knowledge and Knowledge:Counts(ForeverQuestDB)
     if count then
         Print(string.format("Account observations: pickups=%d turnins=%d goals=%d",
@@ -1605,6 +1638,30 @@ SlashCmdList.FOREVERQUEST = function(message)
         state.routeStop = nil
         RefreshFocus()
         Print("Questing preference: " .. ForeverQuestDB.routeMode)
+    elseif command == "later" then
+        local stop = state.routeStop
+        local quest = stop and stop.questID and FindQuest(stop.questID)
+        if stop and stop.kind == "objective" and quest and not quest.complete then
+            DeferredObjectives()[stop.key] = true
+            state.routeStop, state.routeKey = nil, nil
+            state.manualChoice = nil
+            ForeverQuestDB.mode = "AUTO"
+            ForeverQuestDB.manualQuestID = nil
+            ForeverQuestDB.manualKind = nil
+            ForeverQuestDB.manualGoalKey = nil
+            RefreshFocus()
+            Print("Doing " .. tostring(stop.targetName or stop.name)
+                .. " later. AUTO will return when no other safe location-backed work remains. /fq resume restores deferred goals now.")
+        else
+            Print("Select an unfinished quest objective before using /fq later.")
+        end
+    elseif command == "resume" then
+        local deferred = DeferredObjectives()
+        for key in pairs(deferred) do deferred[key] = nil end
+        state.routeStop, state.routeKey = nil, nil
+        ForeverQuestDB.mode = "AUTO"
+        RefreshFocus()
+        Print("Restored deferred quest objectives to AUTO.")
     elseif command == "avoid" then
         local stop = state.routeStop
         local quest = stop and stop.questID and FindQuest(stop.questID)
@@ -1686,7 +1743,7 @@ SlashCmdList.FOREVERQUEST = function(message)
         frame:SetPoint(defaults.point, UIParent, defaults.relativePoint, defaults.x, defaults.y)
         Print("position reset")
     else
-        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq why, /fq mode fast|balanced|complete, /fq avoid, /fq unavoid, /fq zones, /fq plan, /fq skip, /fq unskip, /fq here, /fq knowledge, /fq report, /fq data, /fq navigate, /fq debug, /fq reset")
+        Print("/fq unlock, /fq lock, /fq auto, /fq route, /fq why, /fq mode fast|balanced|complete, /fq later, /fq resume, /fq avoid, /fq unavoid, /fq zones, /fq plan, /fq skip, /fq unskip, /fq here, /fq knowledge, /fq report, /fq data, /fq navigate, /fq debug, /fq reset")
     end
 end
 
