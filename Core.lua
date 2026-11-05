@@ -6,6 +6,7 @@ local Route = _G.ForeverQuestRoute
 local Knowledge = _G.ForeverQuestKnowledge
 local Travel = _G.ForeverQuestTravel
 local Items = _G.ForeverQuestItems
+local Navigation = _G.ForeverQuestNavigation
 local VERSION = "1.0.0"
 -- Read the TOC version when the client exposes addon metadata. This avoids
 -- misleading "v0.3.0 loaded" messages after a successful WoWUp update.
@@ -25,6 +26,7 @@ local defaults = {
     y = 180,
     mode = "AUTO",
     routeMode = "balanced",
+    autoWaypoint = true,
     manualQuestID = nil,
 }
 
@@ -44,6 +46,8 @@ local state = {
     lastFocusChange = 0,
     refreshElapsed = 0,
     arrowElapsed = 0,
+    navigationTarget = nil,
+    navWaypointStatus = nil,
 }
 
 local function CopyDefaults()
@@ -482,6 +486,19 @@ end
 local function NavigateToFocus()
     if state.pickup then
         local item = state.pickup
+        if Navigation and Navigation.Mark then
+            local result = Navigation:Mark({
+                mapID = item.mapID, x = item.x, y = item.y
+            }, true)
+            if result == "marked" then
+                local destination = Navigation:Destination(item.questID, "pickup",
+                    item.giverName or item.area or item.name)
+                Print("Map waypoint set: " .. tostring(destination)
+                    .. " (approximate pickup location).")
+                state.navWaypointStatus = result
+                return
+            end
+        end
         if C_Map and type(C_Map.SetUserWaypoint) == "function"
             and UiMapPoint and type(UiMapPoint.CreateFromCoordinates) == "function" then
             local ok, allowed = true, true
@@ -509,6 +526,20 @@ local function NavigateToFocus()
     local quest = FindQuest(state.focusQuestID)
     if not quest then Print("No focused quest."); return end
 
+    -- An explicit player request may replace their own waypoint.
+    if Navigation and Navigation.Mark and quest.waypointMap
+        and quest.waypointX and quest.waypointY
+        and quest.waypointSource ~= "client" then
+        local result = Navigation:Mark({
+            mapID=quest.waypointMap, x=quest.waypointX, y=quest.waypointY
+        }, true)
+        if result == "marked" then
+            Print("Map waypoint set for " .. quest.title
+                .. " (approximate search area).")
+            state.navWaypointStatus = result
+            return
+        end
+    end
     -- For a curated objective, the game has no usable quest waypoint.
     -- Set a normal Blizzard map waypoint on explicit user request only.
     if (quest.waypointSource == "curated" or quest.waypointSource == "database") and quest.waypointMap
@@ -645,7 +676,7 @@ end
 local frame = CreateFrame("Button", "ForeverQuestFocusFrame", UIParent, "BackdropTemplate")
 -- Two compact tracker lines: quest + distance, then the current objective.
 -- Don't impersonate a full quest-log window or show an always-on AUTO badge.
-frame:SetSize(258, 46)
+frame:SetSize(320, 49)
 if Items and Items.Create then Items:Create(frame) end
 frame:SetFrameStrata("MEDIUM")
 frame:SetClampedToScreen(true)
@@ -663,8 +694,8 @@ frame.accent:SetWidth(2)
 frame.accent:SetColorTexture(0.73, 0.60, 0.25, 0.9)
 
 frame.arrow = frame:CreateTexture(nil, "ARTWORK")
-frame.arrow:SetSize(17, 17)
-frame.arrow:SetPoint("TOPLEFT", frame, "TOPLEFT", 9, -6)
+frame.arrow:SetSize(22, 22)
+frame.arrow:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -4)
 frame.arrow:SetTexture("Interface\\MINIMAP\\MinimapArrow")
 frame.arrow:SetAlpha(0.9)
 frame.arrow:Hide()
@@ -676,7 +707,7 @@ frame.title:SetTextColor(1, 0.82, 0.22)
 
 frame.distance = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 frame.distance:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -9, -7)
-frame.distance:SetWidth(54)
+frame.distance:SetWidth(102)
 frame.distance:SetJustifyH("RIGHT")
 frame.distance:SetTextColor(0.72, 0.72, 0.72)
 frame.distance:SetText("")
@@ -698,7 +729,7 @@ frame.group:Hide()
 local function UpdateTitleLayout()
     frame.title:ClearAllPoints()
     frame.title:SetPoint("TOPLEFT", frame, "TOPLEFT",
-        frame.arrow:IsShown() and 31 or 11, -7)
+        frame.arrow:IsShown() and 36 or 11, -7)
     if frame.group:IsShown() then
         frame.title:SetPoint("RIGHT", frame.group, "LEFT", -5, 0)
     elseif frame.distance:GetText() ~= "" then
@@ -853,8 +884,27 @@ frame:SetScript("OnEnter", function(self)
     end
     if state.pickup then
         GameTooltip:AddLine("Possible new quest: " .. state.pickup.name, 0.45, 0.95, 0.56, true)
-        GameTooltip:AddLine(string.format("Quest giver ~%.1f, %.1f (%s)",
-            state.pickup.x * 100, state.pickup.y * 100, state.pickup.kind), 0.85, 0.85, 0.85)
+        local dest = Navigation and Navigation.Destination
+            and Navigation:Destination(state.pickup.questID, "pickup",
+                state.pickup.giverName or state.pickup.area)
+            or state.pickup.giverName or state.pickup.area
+        if dest then
+            GameTooltip:AddLine("Where: " .. dest, 0.75, 0.92, 1.0, true)
+        end
+        GameTooltip:AddLine(string.format("Map: ~%.1f, %.1f (estimated quest giver)",
+            state.pickup.x * 100, state.pickup.y * 100), 0.85, 0.85, 0.85)
+        if state.navWaypointStatus == "marked" then
+            GameTooltip:AddLine("Blizzard map waypoint active (press M to view).",
+                0.60, 0.94, 0.68, true)
+        elseif state.navWaypointStatus == "manual-pin" then
+            GameTooltip:AddLine("Your existing map pin is preserved. Shift-click here to replace it.",
+                0.98, 0.85, 0.55, true)
+        else
+            GameTooltip:AddLine("Shift-click the card to place a map waypoint.",
+                0.70, 0.84, 1.0, true)
+        end
+        GameTooltip:AddLine("Compass / yards are straight-line estimates, not paths.",
+            0.65, 0.65, 0.65, true)
         if (state.pickup.pickupCount or 1) > 1
             and type(state.pickup.pickupNames) == "table" then
             GameTooltip:AddLine("Other possible quests at this stop:",
@@ -1172,6 +1222,7 @@ RefreshFocus = function()
                         x = manualStop.x, y = manualStop.y, mapID = manualStop.mapID,
                         confidence = manualStop.confidence,
                         kind = "quest starter", distance = manualStop.distance,
+                        giverName = manualStop.giverName, area = manualStop.area,
                         pickupCount = manualStop.pickupCount,
                         pickupNames = manualStop.pickupNames,
                     }
@@ -1209,6 +1260,7 @@ RefreshFocus = function()
                     questID = stop.questID, name = stop.name,
                     x = stop.x, y = stop.y, mapID = stop.mapID,
                     confidence = stop.confidence, kind = "quest starter",
+                    giverName = stop.giverName, area = stop.area,
                     distance = stop.distance, pickupCount = stop.pickupCount,
                     pickupNames = stop.pickupNames,
                 }
@@ -1234,6 +1286,34 @@ RefreshFocus = function()
     end
 
     SetFocus(state.pickup and nil or quest)
+
+    -- Automatically mark the selected destination on Blizzard's map only
+    -- when no user-created waypoint would be overwritten. The full
+    -- navigation remains usable if that API is missing on a client build.
+    state.navigationTarget = nil
+    if state.pickup then
+        state.navigationTarget = {
+            mapID = state.pickup.mapID, x = state.pickup.x,
+            y = state.pickup.y
+        }
+    elseif quest and quest.waypointMap
+        and quest.waypointX and quest.waypointY then
+        state.navigationTarget = {
+            mapID = quest.waypointMap, x = quest.waypointX,
+            y = quest.waypointY
+        }
+    end
+    if Navigation and Navigation.Mark and ForeverQuestDB.autoWaypoint then
+        if state.navigationTarget then
+            state.navWaypointStatus = Navigation:Mark(state.navigationTarget, false)
+        else
+            if Navigation.ClearOwnPin then Navigation:ClearOwnPin() end
+            state.navWaypointStatus = nil
+        end
+    else
+        state.navWaypointStatus = nil
+    end
+
     ObserveFocusedProgress()
     if Items and Items.Update then
         Items:Update(state.pickup and nil or quest)
@@ -1243,14 +1323,23 @@ RefreshFocus = function()
         local pickup = state.pickup
         frame.title:SetText("Pick up: " .. pickup.name)
         frame.title:SetTextColor(0.48, 0.95, 0.57)
+        local destination = Navigation and Navigation.Destination
+            and Navigation:Destination(pickup.questID, "pickup",
+                pickup.giverName or pickup.area)
+            or pickup.giverName or pickup.area
         if (pickup.pickupCount or 1) > 1 then
-            frame.objective:SetText(pickup.pickupCount
-                .. " possible quests at this stop")
+            frame.objective:SetText(pickup.pickupCount .. " possible quests"
+                .. (destination and (" - " .. destination) or " at this stop"))
         else
-            frame.objective:SetText("Possible new quest (" .. pickup.kind .. ")")
+            frame.objective:SetText(destination
+                and ("Find " .. destination)
+                or "Find quest starter (map pin shows location)")
         end
-        frame.distance:SetText(string.format("~%.0f,%.0f",
-            pickup.x * 100, pickup.y * 100))
+        local guidance = Navigation and Navigation.Guidance
+            and Navigation:Guidance(state.navigationTarget)
+        frame.distance:SetText(guidance and guidance.label
+            or string.format("~%.0f,%.0f",
+                pickup.x * 100, pickup.y * 100))
         local overlap = state.routeStop and state.routeStop.overlapping or 0
         frame.group:SetText(overlap > 0 and ("+" .. overlap) or "")
         frame.group:SetShown(overlap > 0)
@@ -1330,7 +1419,11 @@ RefreshFocus = function()
     frame.objective:SetText(objectiveText)
     -- Avoid presenting an unrelated quest-log distance as distance to our
     -- approximate objective; show map coordinates instead when using fallback.
-    if (quest.waypointSource == "curated" or quest.waypointSource == "database")
+    local guidance = Navigation and Navigation.Guidance
+        and Navigation:Guidance(state.navigationTarget)
+    if guidance and guidance.straightYards then
+        frame.distance:SetText(guidance.label)
+    elseif (quest.waypointSource == "curated" or quest.waypointSource == "database")
         and quest.waypointX then
         frame.distance:SetText(string.format("~%.0f,%.0f",
             quest.waypointX * 100, quest.waypointY * 100))
