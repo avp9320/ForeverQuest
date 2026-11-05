@@ -49,6 +49,15 @@ assert(not _G.LibQuestieDB, "external QuestieDB runtime must not be loaded")
 -- A published Forever pickup landmark should survive the standalone
 -- catalog and planner path, including a useful NPC name. No external
 -- addon or hardcoded generic tracker location.
+-- A curated Razor Hill landmark must be checked with an eligible character,
+-- not the level-5 starter used for the Valley of Trials scan above. Simulate
+-- completed prerequisites so the test isolates location provenance.
+local originalCompletion = C_QuestLog.IsQuestFlaggedCompleted
+C_QuestLog.IsQuestFlaggedCompleted = function(id) return id ~= 791 end
+local landmarkLevel = math.max(5,
+    tonumber(db.Quest.Get(791, "requiredLevel")) or 5,
+    tonumber(db.Quest.Get(791, "questLevel")) or 5)
+planner:Scan(1411, landmarkLevel, {})
 local known
 for _, candidate in ipairs(planner:GetNearby(1411,500)) do
     if candidate.questID == 791 then known=candidate; break end
@@ -56,6 +65,7 @@ end
 assert(known and math.abs(known.x-.499)<.002
     and math.abs(known.y-.404)<.002,
     "Carry Your Weight starter should use published Forever waypoint")
+C_QuestLog.IsQuestFlaggedCompleted = originalCompletion
 assert(known.giverName=="Furl Scornbrow"
     and known.area:find("watchtower",1,true),
     "Carry Your Weight starter should identify the landmark")
