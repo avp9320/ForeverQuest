@@ -12,7 +12,7 @@ local first=db.Quest.Get(6,"name")
 assert(type(first)=="string" and #first>0,"missing known Classic quest")
 assert(db.AreaToMap[14]==1411,"Durotar area/map conversion")
 local npc=db.Npc.Get(823,"spawns")
-assert(type(npc)=="table" and type(npc[14])=="table","quest giver coordinates missing")
+assert(type(npc)=="table" and type(npc[12])=="table","quest giver coordinates missing")
 local n=0
 for _ in pairs(db.AreaToMap) do n=n+1 end
 assert(n>200,"too few area mapping entries")
