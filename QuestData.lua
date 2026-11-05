@@ -27,7 +27,7 @@ _G.ForeverQuestData = {
         -- https://questing.wiki/wow-forever/quests/791/
         mapID = 1411,
         pickup = {x = 0.499, y = 0.404,
-            npc = "Furl Scornbrow",
+            npcID = 3147, npc = "Furl Scornbrow",
             area = "Razor Hill watchtower (upper level)"},
         turnIn = {x = 0.499, y = 0.404,
             npc = "Furl Scornbrow",
