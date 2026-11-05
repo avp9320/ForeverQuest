@@ -46,32 +46,27 @@ assert(nav:Destination(791,"pickup","Someone"):find("Razor Hill watchtower",1,tr
 eq(nav:Destination(123456,"pickup","Known NPC"),"Known NPC",
     "generic names are not invented")
 
-local a={mapID=1411,x=.5,y=.4}
-local b={mapID=1411,x=.55,y=.45}
-eq(nav:Mark(a,false),"marked","AUTO sets pin when map free")
-eq(marks,1,"one pin creation")
-eq(nav:Mark(a,false),"marked","same pin stays in place")
-eq(marks,1,"no repeated map writes")
-eq(nav:Mark(b,false),"marked","owned pin follows new objective")
-eq(marks,2,"new destination changes owned pin")
-current={uiMapID=1411,position={x=.9,y=.8}} -- user's own map pin
-eq(nav:Mark(a,false),"manual-pin","user pin is protected")
-eq(marks,2,"user pin not overwritten")
-eq(nav:Mark(a,true),"marked","explicit Shift-click can replace pin")
-eq(marks,3,"explicit map write")
-nav:ClearOwnPin()
-eq(clears,1,"only own map pin cleared")
-eq(current,nil,"own map pin removed")
-
--- If the client lacks the query API, automatic pinning is disabled; the
--- compass still works and explicit Shift-click is available.
-C_Map.GetUserWaypoint=nil
-eq(nav:Mark(a,false),"unsupported","safe fallback on missing map-query API")
-eq(marks,3,"never overwrite unknown existing pin")
-eq(nav:Mark(a,true),"marked","manual action works without query API")
-eq(marks,4,"explicit mark accepted")
+-- Official Blizzard quest tracking is the only navigation write.
+-- Map user pins must be left untouched, including a pre-existing personal pin.
+local tracked, calls = nil, 0
+C_SuperTrack = {
+    GetSuperTrackedQuestID=function() return tracked end,
+    SetSuperTrackedQuestID=function(id)
+        tracked=id
+        calls=calls+1
+        return true
+    end,
+}
+eq(nav:TrackQuest(791),true,"track accepted quest")
+eq(tracked,791,"selected quest is supertracked")
+eq(nav:TrackQuest(791),true,"same quest is already tracked")
+eq(calls,1,"avoid redundant tracking calls")
+eq(nav:TrackQuest(792),true,"switch official quest objective")
+eq(tracked,792,"new quest is supertracked")
+eq(marks,0,"no map pins created")
+eq(clears,0,"no personal pins removed")
+C_SuperTrack=nil
+eq(nav:TrackQuest(791),false,"graceful fallback when supertrack unavailable")
 C_Map.GetMapWorldSize=nil
 assert(guidance(.6,.4).label:find("NE",1,true),"compass works without yard API")
-InCombatLockdown=function() return true end
-eq(nav:Mark(b,true),"unavailable","no map waypoint writes in combat")
-print("ForeverQuest human-readable navigation and waypoint protection tests passed")
+print("ForeverQuest official quest tracking navigation tests passed")
