@@ -335,6 +335,131 @@ function Planner:GetChainPreview(questID, maxCount)
     return result
 end
 
+-- Conservative neighboring-zone suggestions, not a world-wide speedrun
+-- ranking. No invented road paths or impossible cross-continent waypoints.
+-- A zone is suggested only when the bundled catalog has eligible quest
+-- starters on that map. Zone links are hand-reviewed geographic adjacency.
+local neighboringZones = {
+    [1411]={1413},       -- Durotar -> Barrens
+    [1412]={1413},       -- Mulgore -> Barrens
+    [1420]={1421},       -- Tirisfal -> Silverpine
+    [1429]={1436,1433},  -- Elwynn -> Westfall / Redridge
+    [1426]={1432},       -- Dun Morogh -> Loch Modan
+    [1438]={1439},       -- Teldrassil -> Darkshore
+    [1413]={1442,1440,1441}, -- Barrens -> Stonetalon / Ashenvale / Thousand Needles
+    [1421]={1424},       -- Silverpine -> Hillsbrad
+    [1436]={1431,1433},  -- Westfall -> Duskwood / Redridge
+    [1433]={1431},       -- Redridge -> Duskwood
+    [1432]={1437,1418},  -- Loch Modan -> Wetlands / Badlands
+    [1439]={1440},       -- Darkshore -> Ashenvale
+    [1440]={1442,1448},  -- Ashenvale -> Stonetalon / Felwood
+    [1442]={1443},       -- Stonetalon -> Desolace
+    [1441]={1444,1446},  -- Thousand Needles -> Feralas / Tanaris
+    [1424]={1417,1416},  -- Hillsbrad -> Arathi / Alterac
+    [1437]={1417},       -- Wetlands -> Arathi
+    [1431]={1434,1430},  -- Duskwood -> Stranglethorn / Deadwind
+    [1418]={1427},       -- Badlands -> Searing Gorge
+    [1443]={1444},       -- Desolace -> Feralas
+    [1444]={1446},       -- Feralas -> Tanaris
+    [1446]={1449},       -- Tanaris -> Un'Goro
+    [1448]={1452},       -- Felwood -> Winterspring
+    [1427]={1428},       -- Searing Gorge -> Burning Steppes
+    [1422]={1423},       -- Western -> Eastern Plaguelands
+    [1449]={1451},       -- Un'Goro -> Silithus
+}
+local zoneLabels = {
+    [1413]="The Barrens", [1421]="Silverpine Forest", [1436]="Westfall",
+    [1433]="Redridge Mountains", [1432]="Loch Modan", [1439]="Darkshore",
+    [1442]="Stonetalon Mountains", [1440]="Ashenvale", [1441]="Thousand Needles",
+    [1424]="Hillsbrad Foothills", [1431]="Duskwood", [1437]="Wetlands",
+    [1418]="Badlands", [1448]="Felwood", [1443]="Desolace",
+    [1444]="Feralas", [1446]="Tanaris", [1417]="Arathi Highlands",
+    [1416]="Alterac Mountains", [1434]="Stranglethorn Vale",
+    [1430]="Deadwind Pass", [1427]="Searing Gorge", [1449]="Un'Goro Crater",
+    [1452]="Winterspring", [1428]="Burning Steppes",
+    [1423]="Eastern Plaguelands", [1451]="Silithus",
+}
+local zonesMemo = {}
+
+function Planner:GetNextZones(currentMap, level, active, maxResults)
+    local lib = provider()
+    local neighbors = neighboringZones[currentMap]
+    if not lib or not neighbors or not level then return {} end
+    local ids = {}
+    for id in pairs(active or {}) do ids[#ids+1] = id end
+    table.sort(ids)
+    local key = tostring(currentMap) .. ":" .. tostring(level)
+        .. ":" .. table.concat(ids, ",") .. ":" .. tostring(UnitFactionGroup
+            and UnitFactionGroup("player") or "?")
+    if zonesMemo.key == key then return zonesMemo.options end
+
+    local eligibleZones = {}
+    for _, id in ipairs(neighbors) do eligibleZones[id] = 0 end
+    local maps = zoneMap(lib)
+    local raceID = UnitRace and select(3, UnitRace("player"))
+    local classID = UnitClass and select(3, UnitClass("player"))
+    local raceBit = lib.Enum and lib.Enum.raceMaskById
+        and lib.Enum.raceMaskById[raceID]
+    local classBit = type(classID) == "number" and (2 ^ (classID - 1)) or nil
+
+    local valid, all = pcall(lib.Quest.GetAllIds)
+    if not valid or type(all) ~= "table" then return {} end
+    for _, id in ipairs(all) do
+        if eligible(lib, id, level, active or {}, raceBit, classBit) then
+            local starters = get(lib.Quest, id, "startedBy")
+            local seenZones = {}
+            if type(starters) == "table" then
+                for _, entry in ipairs({
+                    {db=lib.Npc, ids=starters[1], kind="NPC"},
+                    {db=lib.Object, ids=starters[2], kind="object"},
+                }) do
+                    if type(entry.ids) == "table" then
+                        for _, entityID in ipairs(entry.ids) do
+                            if FriendlyQuestGiver(entry.db,entityID,entry.kind) then
+                                local spawns = get(entry.db,entityID,"spawns")
+                                if type(spawns) == "table" then
+                                    for area in pairs(spawns) do
+                                        local destination = maps[area] or area
+                                        if eligibleZones[destination] ~= nil then
+                                            seenZones[destination] = true
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            for dest in pairs(seenZones) do
+                eligibleZones[dest] = eligibleZones[dest] + 1
+            end
+        end
+    end
+    local options = {}
+    for id, count in pairs(eligibleZones) do
+        if count > 0 then
+            local name = zoneLabels[id] or ("Map " .. id)
+            if C_Map and type(C_Map.GetMapInfo) == "function" then
+                local ok, info = pcall(C_Map.GetMapInfo, id)
+                if ok and type(info) == "table"
+                    and type(info.name) == "string" and info.name ~= "" then
+                    name = info.name
+                end
+            end
+            options[#options+1] = {
+                mapID=id, name=name, possibleQuests=count,
+                source="bundled-catalog-provisional",
+            }
+        end
+    end
+    table.sort(options,function(a,b)
+        if a.possibleQuests == b.possibleQuests then return a.mapID < b.mapID end
+        return a.possibleQuests > b.possibleQuests
+    end)
+    zonesMemo = {key=key, options=options}
+    return options
+end
+
 function Planner:Available() return provider() ~= nil end
 function Planner:Status() return cache.status end
 
