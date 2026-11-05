@@ -274,6 +274,24 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
     -- enough: the planner could walk away from a second nearby quest giver.
     -- Never chase distant speculative pickups while active work remains.
     local collectingHub = false
+    -- Pickups encountered at an objective cluster should be collected before
+    -- leaving that cluster, not deferred until after the objective/turn-in
+    -- circuit. This is especially important when a character already has
+    -- one quest and discovers another starter at the same hunting area.
+    local function hasPickupNearObjective()
+        for _, pickup in ipairs(all) do
+            if pickup.kind == "pickup" and not used[pickup.key] then
+                for _, objective in ipairs(all) do
+                    if objective.kind == "objective" and not used[objective.key]
+                        and distance(pickup.x, pickup.y, objective.x, objective.y) <= 0.018
+                        and distance(x, y, objective.x, objective.y) <= 0.035 then
+                        return true
+                    end
+                end
+            end
+        end
+        return false
+    end
     -- An empty quest log should trigger one hub collection trip, not a
     -- five-stop sightseeing tour of unrelated quest givers across the map.
     -- After reaching that hub, accepting quests causes a fresh live plan.
@@ -303,6 +321,9 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
         end
         if collectingHub and localPickup then return "pickup" end
         collectingHub = false
+        if hasObjective and localPickup and hasPickupNearObjective() then
+            return "pickup"
+        end
         if hasObjective then return "objective" end
         if hasTurnin then return "turnin" end
         return "pickup"
