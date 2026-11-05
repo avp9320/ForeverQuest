@@ -19,6 +19,10 @@ assert(ashenvale,"Ashenvale reached via Barrens")
 eq(ashenvale.hops,2,"two-hop route")
 eq(ashenvale.path[2],1413,"handoff via Barrens")
 assert(not travel:GetHandoff(1411,1429),"cannot walk between continents")
+assert(travel:GetHandoff(1413,1445),"Barrens connects to Dustwallow")
+assert(travel:GetHandoff(1445,1413),"Dustwallow connects back to Barrens")
+assert(not travel:GetHandoff(1438,1439),"Teldrassil to Darkshore requires transport")
+assert(not travel:GetHandoff(1439,1438),"Darkshore to Teldrassil requires transport")
 C_Map={GetMapInfo=function(id)
     return id==999 and {parentMapID=1411} or {parentMapID=0}
 end}
