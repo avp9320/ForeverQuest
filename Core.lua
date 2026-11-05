@@ -946,7 +946,9 @@ local function BuildRoute()
     if not px then return nil end
     local pickups = {}
     if Planner and Planner.Available and Planner:Available() then
-        pickups = Planner:GetNearby(mapID, 35)
+        -- Inspect the whole local catalog so a productive quest hub is not
+        -- lost behind the first 35 nearest individual quest starters.
+        pickups = Planner:GetNearby(mapID, 100)
     end
     local active = {}
     for _, q in ipairs(state.quests) do active[q.questID]=true end
