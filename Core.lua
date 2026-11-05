@@ -1152,7 +1152,7 @@ SlashCmdList.FOREVERQUEST = function(message)
             local options = Planner:GetNextZones(
                 GetBestMap(), UnitLevel("player"), active, 3)
             if #options == 0 then
-                Print("No nearby zones with verified eligible quest starters at this level.")
+                Print("No neighboring zones with plausible quests in the baseline at this level.")
             else
                 Print("Neighboring zones with possible quests (catalog estimates):")
                 for i = 1, math.min(3, #options) do
