@@ -50,8 +50,13 @@ C_QuestLog={
 }
 C_Timer={After=function(_,f) f() end}
 dofile("QuestData.lua")
+dofile("Travel.lua")
+dofile("Knowledge.lua")
+dofile("Chains.lua")
 dofile("QuestPlanner.lua")
+dofile("Strategy.lua")
 dofile("Route.lua")
+dofile("QuestItems.lua")
 dofile("Core.lua")
 local core=allFrames[3] -- UIParent and GameTooltip were created before the addon.
 assert(core.scripts.OnEvent,"core event listener")
@@ -207,4 +212,18 @@ SlashCmdList.FOREVERQUEST("skip")
 assert(card.title:GetText()=="Pick up: Second Hub Quest",
     "skip first quest reveals other pickup without leaving hub")
 
+-- Quest accept/turn-in updates account-wide knowledge at the CURRENT
+-- character location; the next alt can then reuse those observations.
+core.scripts.OnEvent(core,"QUEST_ACCEPTED",2,700)
+local learned=ForeverQuestDB.learnedQuestLocations
+assert(learned and learned.pickup[700],"quest acceptance saved")
+core.scripts.OnEvent(core,"QUEST_TURNED_IN",700)
+assert(learned.turnin[700],"turn-in location saved")
+SlashCmdList.FOREVERQUEST("knowledge")
+SlashCmdList.FOREVERQUEST("mode fast")
+assert(ForeverQuestDB.routeMode=="fast","user preference saved")
+SlashCmdList.FOREVERQUEST("mode complete")
+assert(ForeverQuestDB.routeMode=="complete","completion preference saved")
+SlashCmdList.FOREVERQUEST("mode balanced")
+assert(ForeverQuestDB.routeMode=="balanced","balanced preference restored")
 print("ForeverQuest Core mock game/UI smoke test passed")
