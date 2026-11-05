@@ -34,6 +34,8 @@ local function append(all, seen, kind, id, name, mapID, x, y,
         sourceKind = goal and goal.kind,
         waypointSource = goal and goal.waypointSource,
         giverID = kind == "pickup" and goal and goal.giverID or nil,
+        suggestedGroup = goal and goal.suggestedGroup or nil,
+        isElite = goal and goal.isElite or nil,
     }
     seen[key] = true
     all[#all + 1] = stop
@@ -98,7 +100,7 @@ local function nearCount(stop, others, used)
     return n
 end
 
-local function routeScore(candidate, x, y, all, used)
+local function routeScore(candidate, x, y, all, used, options)
     local dist = distance(candidate.x, candidate.y, x, y)
     local value = VALUE[candidate.kind] or 5
     local clustered = math.min(3, nearCount(candidate, all, used))
@@ -120,12 +122,20 @@ local function routeScore(candidate, x, y, all, used)
     elseif source == "forever-beta" then
         score = score + 0.012
     end
+    local strategy = _G.ForeverQuestStrategy
+    if strategy and strategy.Assess then
+        local adjustment, reason = strategy:Assess(candidate, options)
+        score = score + adjustment
+        candidate.decisionReason = reason
+    end
     return score, dist, clustered
 end
 
 -- quests: active accepted quests, pickups: provisional unaccepted quests.
 -- The player position and stop points must refer to the SAME UiMapID.
-function Route:Build(quests, pickups, mapID, playerX, playerY)
+function Route:Build(quests, pickups, mapID, playerX, playerY, options)
+    options = options or {}
+    local avoided = options.avoided or {}
     local plan = {mapID = mapID, stops = {}, totalCandidates = 0, confidence = "approximate"}
     if type(mapID) ~= "number" or type(playerX) ~= "number"
         or type(playerY) ~= "number" then return plan end
@@ -133,11 +143,14 @@ function Route:Build(quests, pickups, mapID, playerX, playerY)
     local all = {mapID = mapID}
     local seen = {}
     for _, q in ipairs(quests or {}) do
+        if not avoided[q.questID] then
         local goals = not q.complete and q.goalPoints
         if type(goals) == "table" and #goals > 0 then
             -- Each unfinished objective gets its own route stop. Alternative
             -- spawn points for the same objective are already collapsed.
             for _, goal in ipairs(goals) do
+                goal.suggestedGroup = q.suggestedGroup
+                goal.isElite = q.isElite
                 append(all, seen, "objective", q.questID, q.title,
                     goal.mapID, goal.x, goal.y,
                     goal.confidence or "provisional", goal.entityName, goal)
@@ -145,7 +158,8 @@ function Route:Build(quests, pickups, mapID, playerX, playerY)
         elseif q.waypointX and q.waypointY and q.waypointMap then
             append(all, seen, q.complete and "turnin" or "objective",
                 q.questID, q.title, q.waypointMap, q.waypointX, q.waypointY,
-                q.waypointConfidence or q.waypointSource, q.waypointArea)
+                q.waypointConfidence or q.waypointSource, q.waypointArea, q)
+        end
         end
     end
     -- Unaccepted quests are provisional. Do not cross a zone just because
@@ -154,7 +168,8 @@ function Route:Build(quests, pickups, mapID, playerX, playerY)
     -- With an empty active log, future pickups remain the primary plan.
     local activeCount = #all
     for _, q in ipairs(pickups or {}) do
-        if validPoint(q.mapID, q.x, q.y, mapID) then
+        if not avoided[q.questID]
+            and validPoint(q.mapID, q.x, q.y, mapID) then
             local playerDistance = distance(playerX, playerY, q.x, q.y)
             local alongRoute = false
             if activeCount > 0 then
@@ -182,7 +197,7 @@ function Route:Build(quests, pickups, mapID, playerX, playerY)
         local best, bestScore, bestDist, bestCluster
         for _, candidate in ipairs(all) do
             if not used[candidate.key] then
-                local score, dist, clustered = routeScore(candidate, x, y, all, used)
+                local score, dist, clustered = routeScore(candidate, x, y, all, used, options)
                 -- Small stable tie-break avoids nondeterministic NPC spawn order.
                 score = score - (tonumber(candidate.questID) or 0) * 0.000000001
                 if not bestScore or score > bestScore then
