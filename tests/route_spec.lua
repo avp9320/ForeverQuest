@@ -56,8 +56,30 @@ local turnin = {
         waypointX=.402, waypointY=.602},
 }
 path = route:Build({turnin[1], active[1]}, {}, 1411, .4, .6)
-equal(path.stops[1].kind, "objective", "finish objectives before returning for turn-ins")
-equal(path.stops[2].kind, "turnin", "turn-in follows the objective circuit")
+equal(path.stops[1].kind, "turnin",
+    "bank a nearby completed quest before distant objectives")
+equal(path.stops[2].kind, "objective",
+    "resume the remaining objective after a local turn-in")
+-- Do not detour for a turn-in when an unfinished objective is already
+-- in the same area; finish the coherent objective cluster first.
+local nearbyObjective={{questID=4,title="Local work",complete=false,
+    waypointMap=1411,waypointX=.420,waypointY=.610}}
+local sameCircuit=route:Build({turnin[1],nearbyObjective[1]}, {},1411,.4,.6)
+equal(sameCircuit.stops[1].kind,"objective",
+    "local objective circuit wins over optional early turn-in")
+-- Do not chase a completed quest on the far side of the zone.
+local remoteTurnin={{questID=5,title="Remote ready",complete=true,
+    waypointMap=1411,waypointX=.85,waypointY=.85}}
+local localObjective={{questID=6,title="Local kill",complete=false,
+    waypointMap=1411,waypointX=.42,waypointY=.62}}
+local remotePlan=route:Build({remoteTurnin[1],localObjective[1]}, {},1411,.4,.6)
+equal(remotePlan.stops[1].kind,"objective",
+    "remote turn-in cannot preempt a nearby unfinished objective")
+-- An opportunistic quest pickup at the current hub still takes precedence
+-- over both the early turn-in and a faraway objective.
+local hubBeforeTurnin=route:Build({turnin[1],active[1]},nearby,1411,.4,.6)
+equal(hubBeforeTurnin.stops[1].kind,"pickup",
+    "collect nearby hub offers before departing for a turn-in")
 path = route:Build({active[1]}, {{questID=1,name="Duplicate",mapID=1411,x=.42,y=.61}},1411,.4,.6)
 equal(#path.stops,2,"distinct kinds remain distinct")
 path = route:Build(active, nearby, 1412, .4, .6)
