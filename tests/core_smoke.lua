@@ -159,6 +159,9 @@ SlashCmdList.FOREVERQUEST("why") -- explain selected automatic objective safely
 -- database goals. Nearby native coordinates are attached to the matching
 -- goal; a very different native coordinate should be left authoritative
 -- rather than guessed to refer to a Classic objective.
+-- Advance beyond the anti-thrashing window. In normal gameplay a fully
+-- completed goal does not spontaneously become unfinished again.
+GetTime=function() return 125 end
 objectiveRows[1]={text="0/3 First Target",finished=false}
 objectiveRows[2]={text="0/4 Second Target",finished=false}
 C_QuestLog.GetNextWaypointForMap=function(questID,mapID)
