@@ -47,6 +47,9 @@ local state = {
     refreshElapsed = 0,
     arrowElapsed = 0,
     navigationTarget = nil,
+    -- The most recent native quest that AUTO itself chose. Never keep
+    -- overwriting a player's independent Blizzard quest selection.
+    autoSupertrackQuestID = nil,
 }
 
 local function CopyDefaults()
@@ -737,6 +740,14 @@ frame:SetScript("OnDragStop", function(self)
     SavePosition()
 end)
 
+local function ReadNativeTrackedQuest()
+    local getter = C_SuperTrack and C_SuperTrack.GetSuperTrackedQuestID
+    if type(getter) ~= "function" then return nil end
+    local ok, id = pcall(getter)
+    if ok and type(id) == "number" and id > 0 then return id end
+    return nil
+end
+
 local function SetFocus(quest)
     local oldID = state.focusQuestID
     state.focusQuestID = quest and quest.questID or nil
@@ -777,6 +788,13 @@ local function ManualCycle(direction)
         ForeverQuestDB.manualQuestID = selected.questID
         ForeverQuestDB.manualGoalKey = selected.goalKey
         state.manualChoice = selected
+        state.autoSupertrackQuestID = nil
+        -- Cycling the ForeverQuest card is an explicit user choice. Reflect
+        -- that choice in the native tracker once, rather than rewriting
+        -- Blizzard tracking during every periodic refresh.
+        if selected.kind ~= "pickup" and Navigation and Navigation.TrackQuest then
+            Navigation:TrackQuest(selected.questID)
+        end
         if RefreshFocus then RefreshFocus() end
         return
     end
@@ -794,6 +812,10 @@ local function ManualCycle(direction)
     if currentIndex < 1 then currentIndex = #state.quests end
     ForeverQuestDB.manualQuestID = state.quests[currentIndex].questID
     state.manualChoice = nil
+    state.autoSupertrackQuestID = nil
+    if Navigation and Navigation.TrackQuest then
+        Navigation:TrackQuest(ForeverQuestDB.manualQuestID)
+    end
     if RefreshFocus then RefreshFocus() end
 end
 
@@ -812,6 +834,7 @@ frame:SetScript("OnClick", function(_, button)
         state.manualChoice = nil
         state.routeStop = nil
         state.routeKey = nil
+        state.autoSupertrackQuestID = nil
         if RefreshFocus then RefreshFocus() end
         Print("AUTO mode")
     elseif button == "LeftButton" then
@@ -1139,6 +1162,30 @@ RefreshFocus = function()
     RefreshFutureQuests()
     state.nextZones = nil
 
+    local nativeQuestID = ReadNativeTrackedQuest()
+    if ForeverQuestDB.mode == "AUTO"
+        and state.autoSupertrackQuestID
+        and nativeQuestID and nativeQuestID ~= state.autoSupertrackQuestID
+        and FindQuest(nativeQuestID) then
+        -- Player switched the Blizzard tracker while we were in AUTO.
+        -- Treat that as MANUAL, even if the selected quest is not part
+        -- of the short five-stop plan. Right-click or /fq auto resumes.
+        ForeverQuestDB.mode = "MANUAL"
+        ForeverQuestDB.manualQuestID = nativeQuestID
+        ForeverQuestDB.manualKind = nil
+        ForeverQuestDB.manualGoalKey = nil
+        state.manualChoice = nil
+        state.routeStop, state.routeKey = nil, nil
+        state.autoSupertrackQuestID = nil
+    elseif ForeverQuestDB.mode == "MANUAL"
+        and not ForeverQuestDB.manualKind and nativeQuestID
+        and nativeQuestID ~= ForeverQuestDB.manualQuestID
+        and FindQuest(nativeQuestID) then
+        -- Continue honoring subsequent selections in the native tracker.
+        ForeverQuestDB.manualQuestID = nativeQuestID
+        state.manualChoice = nil
+    end
+
     -- Rebuild in both AUTO and MANUAL modes. A manual stop should follow
     -- changing quest progress, rather than staying frozen at old coordinates.
     local plan = BuildRoute()
@@ -1273,8 +1320,12 @@ RefreshFocus = function()
             y = quest.waypointY
         }
     end
-    if not state.pickup and quest and Navigation and Navigation.TrackQuest then
-        Navigation:TrackQuest(quest.questID)
+    if ForeverQuestDB.mode == "AUTO" and not state.pickup and quest
+        and Navigation and Navigation.TrackQuest
+        and state.autoSupertrackQuestID ~= quest.questID then
+        if Navigation:TrackQuest(quest.questID) then
+            state.autoSupertrackQuestID = quest.questID
+        end
     end
 
     ObserveFocusedProgress()
@@ -1586,7 +1637,10 @@ SlashCmdList.FOREVERQUEST = function(message)
         ForeverQuestDB.mode = "AUTO"
         ForeverQuestDB.manualQuestID = nil
         ForeverQuestDB.manualKind = nil
+        ForeverQuestDB.manualGoalKey = nil
         state.manualChoice = nil
+        state.autoSupertrackQuestID = nil
+        state.routeStop, state.routeKey = nil, nil
         RefreshFocus()
         Print("AUTO mode")
     elseif command == "area" then
