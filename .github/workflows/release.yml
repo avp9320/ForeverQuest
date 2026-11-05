@@ -93,6 +93,30 @@ jobs:
           cd package
           zip -r "../ForeverQuest-v${VERSION}.zip" ForeverQuest
 
+      - name: Verify one-addon archive is self-contained
+        if: steps.exists.outputs.exists == 'false'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION='${{ steps.version.outputs.version }}'
+          ZIP="ForeverQuest-v${VERSION}.zip"
+          unzip -t "$ZIP" > /dev/null
+          for required in ForeverQuest/ForeverQuest.toc \
+            ForeverQuest/CatalogData.lua \
+            ForeverQuest/CatalogRuntime.lua \
+            ForeverQuest/QuestPlanner.lua \
+            ForeverQuest/Route.lua \
+            ForeverQuest/ThirdPartyLicenses/QuestieDB-LICENSE.md
+          do
+            unzip -Z1 "$ZIP" | grep -Fxq "$required"
+          done
+          if unzip -Z1 "$ZIP" | grep -q '^QuestieDB/'; then
+            echo "Unexpected separate addon folder in archive"
+            exit 1
+          fi
+          test "$(stat -c%s "$ZIP")" -gt 100000
+          sha256sum "$ZIP"
+
       - name: Create GitHub release
         if: steps.exists.outputs.exists == 'false'
         env:
