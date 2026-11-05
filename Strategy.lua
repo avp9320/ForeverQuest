@@ -62,7 +62,8 @@ function Strategy:Assess(stop, opts)
     end
     local level = tonumber(opts.level) or 1
     local mode = opts.mode or "balanced"
-    local qlevel = tonumber(questField(id, "questLevel"))
+    local qlevel = tonumber(stop.questLevel)
+        or tonumber(questField(id, "questLevel"))
     local group = tonumber(stop.suggestedGroup) or 0
     local elite = stop.isElite == true
     local gap = qlevel and qlevel - level or 0
@@ -153,9 +154,37 @@ function Strategy:Assess(stop, opts)
     }
 end
 
+-- AUTO should not recommend quests above the character's actual level.
+-- Quest log levels take priority; the bundled catalog is the fallback.
+-- A finished turn-in remains safe and useful even if its quest was higher.
+function Strategy:IsAutoEligible(stop, opts)
+    if not stop then return false end
+    opts = opts or {}
+    if opts.avoided and opts.avoided[stop.questID] then
+        return false, "Manually avoided quest"
+    end
+    if stop.kind == "turnin" or stop.complete == true then
+        return true
+    end
+    local level = tonumber(opts.level)
+    local qlevel = tonumber(stop.questLevel)
+    if not qlevel or qlevel <= 0 then
+        qlevel = tonumber(questField(stop.questID, "questLevel"))
+    end
+    if level and qlevel and qlevel > level then
+        return false, "Quest level " .. qlevel .. " exceeds player level " .. level
+    end
+    local group = tonumber(stop.suggestedGroup) or 0
+    local members = math.max(1, tonumber(opts.groupSize) or 1)
+    if members == 1 and (group > 1 or stop.isElite == true) then
+        return false, "Group or elite quest while solo"
+    end
+    return true
+end
+
 function Strategy:ShouldAvoidAuto(stop, opts)
-    local adjustment = self:Assess(stop, opts)
-    return adjustment <= -0.3
+    local eligible = self:IsAutoEligible(stop, opts)
+    return not eligible
 end
 
 function Strategy:Explain(stop, opts)
