@@ -174,9 +174,21 @@ function Strategy:IsAutoEligible(stop, opts)
     if level and qlevel and qlevel > level then
         return false, "Quest level " .. qlevel .. " exceeds player level " .. level
     end
-    local group = tonumber(stop.suggestedGroup) or 0
+    -- Required level is a separate gate from quest difficulty. Some
+    -- Classic-derived entries have a low questLevel but a later unlock.
+    -- Never send AUTO to an NPC before that minimum is met.
+    local required = tonumber(questField(stop.questID, "requiredLevel"))
+    if level and required and required > level then
+        return false, "Requires level " .. required
+    end
+    -- Runtime quest-log metadata may omit group/elite flags. Fall back to
+    -- the bundled catalog rather than treating missing flags as safe.
+    local group = tonumber(stop.suggestedGroup)
+        or tonumber(questField(stop.questID, "suggestedGroup")) or 0
+    local elite = stop.isElite == true
+        or questField(stop.questID, "isElite") == true
     local members = math.max(1, tonumber(opts.groupSize) or 1)
-    if members == 1 and (group > 1 or stop.isElite == true) then
+    if members == 1 and (group > 1 or elite) then
         return false, "Group or elite quest while solo"
     end
     return true
