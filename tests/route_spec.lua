@@ -104,6 +104,37 @@ local trusted = route:Build({
 }, {},1411,.4,.45)
 equal(trusted.stops[1].questID,411,"prefer nearby confirmed client position")
 
+-- AUTO commitment: approaching another objective must not steal focus while
+-- the selected quest objective is still available. Once completed (removed
+-- from the active list), planning naturally advances to the remaining one.
+local loopA={questID=501,title="Committed objective",complete=false,
+    waypointMap=1411,waypointX=.60,waypointY=.60}
+local loopB={questID=502,title="Passing objective",complete=false,
+    waypointMap=1411,waypointX=.41,waypointY=.60}
+local initial=route:Build({loopA,loopB},{},1411,.58,.60)
+equal(initial.stops[1].questID,501,"start working on nearer objective")
+local continued=route:Build({loopA,loopB},{},1411,.41,.60,
+    {preferredKey=initial.stops[1].key})
+equal(continued.stops[1].questID,501,
+    "passing a closer quest does not interrupt committed objective")
+local advanced=route:Build({loopB},{},1411,.41,.60,
+    {preferredKey=initial.stops[1].key})
+equal(advanced.stops[1].questID,502,
+    "completion advances to next eligible stop")
+
+-- Prefer a productive group of nearby accepted objectives over an isolated
+-- marginally closer task. This reduces crossing back and forth across zones.
+local grouping=route:Build({
+    {questID=510,title="Isolated",complete=false,
+        waypointMap=1411,waypointX=.435,waypointY=.50},
+    {questID=511,title="Cluster one",complete=false,
+        waypointMap=1411,waypointX=.48,waypointY=.50},
+    {questID=512,title="Cluster two",complete=false,
+        waypointMap=1411,waypointX=.485,waypointY=.505},
+}, {},1411,.4,.5)
+equal(grouping.stops[1].questID,511,
+    "multi-quest area beats slightly closer isolated stop")
+
 local playerLevel = 8
 local finished = {[105]=true}
 UnitRace = function() return "Orc","Orc",2 end
