@@ -321,7 +321,7 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
         end
         if collectingHub and localPickup then return "pickup" end
         collectingHub = false
-        if hasObjective and localPickup and hasPickupNearObjective() then
+        if hasObjective and hasPickupNearObjective() then
             return "pickup"
         end
         if hasObjective then return "objective" end
@@ -347,7 +347,22 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
         local phase = phaseForStep(step)
         local best, bestScore, bestDist, bestCluster
         for _, candidate in ipairs(all) do
+            local objectiveAreaPickup = phase == "pickup" and hasObjective and
+                not collectingHub and hasPickupNearObjective()
+            local nearObjective = not objectiveAreaPickup
+            if objectiveAreaPickup then
+                nearObjective = false
+                for _, objective in ipairs(all) do
+                    if objective.kind == "objective" and not used[objective.key]
+                        and distance(candidate.x, candidate.y, objective.x, objective.y) <= 0.018
+                        and distance(x, y, objective.x, objective.y) <= 0.035 then
+                        nearObjective = true
+                        break
+                    end
+                end
+            end
             if not used[candidate.key] and candidate.kind == phase
+                and nearObjective
                 and (not emptyLogPickupTrip or not firstPickupX
                     or distance(candidate.x, candidate.y,
                         firstPickupX, firstPickupY) <= 0.035) then
