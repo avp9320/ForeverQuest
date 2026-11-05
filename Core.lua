@@ -941,6 +941,7 @@ local function BuildRoute()
         level = UnitLevel and UnitLevel("player") or 1,
         mode = ForeverQuestDB.routeMode or "balanced",
         avoided = AvoidedQuests(),
+        groupSize = math.max(1,(GetNumGroupMembers and GetNumGroupMembers()) or 1),
     })
     state.routePlan = plan
     return plan
@@ -1047,6 +1048,7 @@ local function ExplainFocus()
             level=UnitLevel and UnitLevel("player") or 1,
             mode=ForeverQuestDB.routeMode or "balanced",
             avoided=AvoidedQuests(),
+            groupSize=math.max(1,(GetNumGroupMembers and GetNumGroupMembers()) or 1),
         })
     end
     Print(why .. ". Location source: " .. confidence
