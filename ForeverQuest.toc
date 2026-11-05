@@ -2,10 +2,12 @@
 ## Title: ForeverQuest
 ## Notes: Compact smart quest focus and navigation for WoW: Forever.
 ## Author: avp9320
-## Version: 0.2.1
+## Version: 0.3.0
 ## SavedVariables: ForeverQuestDB
+## OptionalDeps: QuestieDB
 
 QuestData.lua
+QuestPlanner.lua
 Core.lua
 Theme.lua
 Debug.lua
