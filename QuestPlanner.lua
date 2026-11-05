@@ -218,7 +218,31 @@ local function closestEntity(lib, ids, db, mapID, maps, px, py, kind)
     return best, dist
 end
 
-function Planner:GetActivePosition(questID, complete, mapID)
+-- Only suppress a database target when its name unambiguously matches a
+-- finished objective in the live quest log. Unknown matches remain eligible.
+local function FinishedInQuestLog(name, statuses)
+    if type(name) ~= "string" or name == ""
+        or type(statuses) ~= "table" then return false end
+    local needle = name:lower()
+    if #needle < 4 then return false end
+    for _, objective in ipairs(statuses) do
+        if type(objective) == "table" then
+            local text = objective.text or objective.description
+            if type(text) == "string" and text:lower():find(needle, 1, true) then
+                local done = objective.finished == true or objective.isFinished == true
+                local required = tonumber(objective.numRequired)
+                local fulfilled = tonumber(objective.numFulfilled)
+                if required and required > 0 and fulfilled and fulfilled >= required then
+                    done = true
+                end
+                if done then return true end
+            end
+        end
+    end
+    return false
+end
+
+function Planner:GetActivePosition(questID, complete, mapID, statuses)
     local lib = provider()
     if not lib or not questID or not mapID then return nil end
     local px, py = playerXY(mapID)
@@ -239,11 +263,17 @@ function Planner:GetActivePosition(questID, complete, mapID)
     local npcIDs, objectIDs = {}, {}
     for _, row in ipairs(type(idGroups[1]) == "table" and idGroups[1] or {}) do
         local id = type(row) == "table" and row[1] or row
-        if type(id) == "number" and id > 0 then npcIDs[#npcIDs+1] = id end
+        if type(id) == "number" and id > 0
+            and (complete or not FinishedInQuestLog(get(lib.Npc, id, "name"), statuses)) then
+            npcIDs[#npcIDs+1] = id
+        end
     end
     for _, row in ipairs(type(idGroups[2]) == "table" and idGroups[2] or {}) do
         local id = type(row) == "table" and row[1] or row
-        if type(id) == "number" and id > 0 then objectIDs[#objectIDs+1] = id end
+        if type(id) == "number" and id > 0
+            and (complete or not FinishedInQuestLog(get(lib.Object, id, "name"), statuses)) then
+            objectIDs[#objectIDs+1] = id
+        end
     end
     add(npcIDs, lib.Npc, "NPC")
     add(objectIDs, lib.Object, "object")
@@ -251,7 +281,8 @@ function Planner:GetActivePosition(questID, complete, mapID)
     if not complete then
         for _, row in ipairs(type(idGroups[3]) == "table" and idGroups[3] or {}) do
             local itemID = type(row) == "table" and row[1] or row
-            if type(itemID) == "number" and itemID > 0 and lib.Item then
+            if type(itemID) == "number" and itemID > 0 and lib.Item
+                and not FinishedInQuestLog(get(lib.Item, itemID, "name"), statuses) then
                 add(get(lib.Item, itemID, "npcDrops"), lib.Npc, "item drop NPC")
                 add(get(lib.Item, itemID, "objectDrops"), lib.Object, "item drop object")
             end
