@@ -43,6 +43,7 @@ jobs:
           sudo apt-get install -y -qq lua5.1
           for f in *.lua tests/*.lua; do luac5.1 -p "$f"; done
           lua5.1 tests/route_spec.lua
+          lua5.1 tests/core_smoke.lua
 
       - name: Check whether this version already exists
         id: exists
