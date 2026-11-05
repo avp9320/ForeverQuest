@@ -263,60 +263,114 @@ local function FinishedInQuestLog(name, statuses)
     return false
 end
 
-function Planner:GetActivePosition(questID, complete, mapID, statuses)
+-- One quest may have several unfinished objectives. Return one nearby search
+-- area for EACH distinct NPC, object, or collection goal. This avoids the
+-- previous bug where the whole quest was pinned to just one target.
+-- Alternative spawn positions or drop sources for the same goal are choices,
+-- not additional things the player has to complete.
+function Planner:GetActivePositions(questID, complete, mapID, statuses, maxCount)
     local lib = provider()
-    if not lib or not questID or not mapID then return nil end
+    if not lib or not questID or not mapID then return {} end
     local px, py = playerXY(mapID)
-    if not px then return nil end
+    if not px then return {} end
     local maps = zoneMap(lib)
-    local idGroups
-    if complete then
-        idGroups = get(lib.Quest, questID, "finishedBy")
-    else
-        idGroups = get(lib.Quest, questID, "objectives")
-    end
-    if type(idGroups) ~= "table" then return nil end
-    local candidates = {}
-    local function add(ids, db, kind)
-        local found = closestEntity(lib, ids, db, mapID, maps, px, py, kind)
-        if found then candidates[#candidates+1] = found end
-    end
-    local npcIDs, objectIDs = {}, {}
-    for _, row in ipairs(type(idGroups[1]) == "table" and idGroups[1] or {}) do
-        local id = type(row) == "table" and row[1] or row
-        if type(id) == "number" and id > 0
-            and (complete or not FinishedInQuestLog(get(lib.Npc, id, "name"), statuses)) then
-            npcIDs[#npcIDs+1] = id
-        end
-    end
-    for _, row in ipairs(type(idGroups[2]) == "table" and idGroups[2] or {}) do
-        local id = type(row) == "table" and row[1] or row
-        if type(id) == "number" and id > 0
-            and (complete or not FinishedInQuestLog(get(lib.Object, id, "name"), statuses)) then
-            objectIDs[#objectIDs+1] = id
-        end
-    end
-    add(npcIDs, lib.Npc, "NPC")
-    add(objectIDs, lib.Object, "object")
+    local groups = get(lib.Quest, questID, complete and "finishedBy" or "objectives")
+    if type(groups) ~= "table" then return {} end
 
-    if not complete then
-        for _, row in ipairs(type(idGroups[3]) == "table" and idGroups[3] or {}) do
-            local itemID = type(row) == "table" and row[1] or row
-            if type(itemID) == "number" and itemID > 0 and lib.Item
-                and not FinishedInQuestLog(get(lib.Item, itemID, "name"), statuses) then
-                add(get(lib.Item, itemID, "npcDrops"), lib.Npc, "item drop NPC")
-                add(get(lib.Item, itemID, "objectDrops"), lib.Object, "item drop object")
+    local result = {}
+    local function bestLocation(ids, db, kind)
+        return closestEntity(lib, ids, db, mapID, maps, px, py, kind)
+    end
+    local function add(key, label, stepLabel, location)
+        if not location then return end
+        location.goalKey = key
+        location.targetName = label
+        location.stepLabel = stepLabel
+        local dx, dy = location.x - px, location.y - py
+        location.mapDistance = math.sqrt(dx * dx + dy * dy)
+        result[#result + 1] = location
+    end
+
+    if complete then
+        -- Multiple finishers are usually alternatives; never route the player
+        -- to all of them. Choose the nearest known valid turn-in location.
+        local npc, npcD = bestLocation(groups[1], lib.Npc, "turn-in NPC")
+        local object, objectD = bestLocation(groups[2], lib.Object, "turn-in object")
+        local best = npc
+        if object and (not npcD or (objectD and objectD < npcD)) then
+            best = object
+        end
+        add("turnin", best and best.entityName, "Turn in quest", best)
+        return result
+    end
+
+    -- NPC and object goal rows include IDs + quantities; the live quest log
+    -- is authoritative about whether each objective is already complete.
+    for _, group in ipairs({
+        {rows = groups[1], db = lib.Npc, kind = "enemy", prefix = "Defeat "},
+        {rows = groups[2], db = lib.Object, kind = "object", prefix = "Use "},
+    }) do
+        if type(group.rows) == "table" then
+            local done = {}
+            for _, row in ipairs(group.rows) do
+                local id = type(row) == "table" and row[1] or row
+                if type(id) == "number" and id > 0 and not done[id] then
+                    done[id] = true
+                    local label = get(group.db, id, "name")
+                    if not FinishedInQuestLog(label, statuses) then
+                        local location = bestLocation({id}, group.db, group.kind)
+                        add(group.kind .. ":" .. id, label,
+                            group.prefix .. (label or "quest target"), location)
+                    end
+                end
             end
         end
     end
 
-    local best, bestD
-    for _, candidate in ipairs(candidates) do
-        local dx, dy = candidate.x - px, candidate.y - py
-        local d = dx*dx + dy*dy
-        if not bestD or d < bestD then best, bestD = candidate, d end
+    -- Item goals have several potential sources. Pick just one source area
+    -- per item, favoring the closest known drop NPC or interactable object.
+    if type(groups[3]) == "table" and lib.Item then
+        local done = {}
+        for _, row in ipairs(groups[3]) do
+            local itemID = type(row) == "table" and row[1] or row
+            if type(itemID) == "number" and itemID > 0 and not done[itemID] then
+                done[itemID] = true
+                local itemName = get(lib.Item, itemID, "name")
+                if not FinishedInQuestLog(itemName, statuses) then
+                    local npc, npcD = bestLocation(
+                        get(lib.Item, itemID, "npcDrops"), lib.Npc, "item drop NPC")
+                    local object, objectD = bestLocation(
+                        get(lib.Item, itemID, "objectDrops"), lib.Object, "item drop object")
+                    local best = npc
+                    if object and (not npcD or (objectD and objectD < npcD)) then
+                        best = object
+                    end
+                    local label = itemName or ("Item " .. itemID)
+                    local text = "Collect " .. label
+                    if best and best.entityName then
+                        text = text .. " (" .. best.entityName .. ")"
+                    end
+                    add("item:" .. itemID, label, text, best)
+                end
+            end
+        end
     end
-    return best
+
+    table.sort(result, function(a, b)
+        if a.mapDistance == b.mapDistance then
+            return a.goalKey < b.goalKey
+        end
+        return a.mapDistance < b.mapDistance
+    end)
+    -- A bounded number of separate objectives avoids massive cluster spam.
+    local limit = math.max(1, math.min(10, maxCount or 6))
+    while #result > limit do result[#result] = nil end
+    return result
+end
+
+-- Compatibility API for callers needing only the first immediate target.
+function Planner:GetActivePosition(questID, complete, mapID, statuses)
+    return self:GetActivePositions(questID, complete, mapID, statuses, 1)[1]
 end
 
 function Planner:GetChainPreview(questID, maxCount)
