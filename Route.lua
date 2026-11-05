@@ -73,7 +73,18 @@ local function groupPickupHubs(candidates)
         local hub, bestDistance
         for _, existing in ipairs(hubs) do
             local d = distance(existing.x, existing.y, candidate.x, candidate.y)
-            if d <= PICKUP_HUB and (not bestDistance or d < bestDistance) then
+            -- Close coordinates do not mean the same NPC. Preserve separate
+            -- stops for different known quest givers so the player can collect
+            -- every offer in a hub instead of being sent to the wrong NPC.
+            -- For missing IDs, use a much tighter proximity threshold; the
+            -- catalog may be approximate and should not invent shared givers.
+            local sameGiver = candidate.giverID and existing.giverID
+                and candidate.giverID == existing.giverID
+            local unknownGiver = not candidate.giverID or not existing.giverID
+            local radius = sameGiver and PICKUP_HUB or 0.002
+            if (sameGiver or unknownGiver)
+                and d <= radius
+                and (not bestDistance or d < bestDistance) then
                 hub, bestDistance = existing, d
             end
         end
