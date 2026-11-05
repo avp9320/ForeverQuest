@@ -117,6 +117,33 @@ equal(hubs.stops[1].pickupNames[2],"Hub quest B","hub lists other quests")
 assert(route:Describe(hubs.stops[1]):find("3 possible quests",1,true),
     "hub route description reports grouped pickups")
 
+-- Two quest givers in the same village are separate collection stops.
+-- Do not conflate their offers just because their coordinates overlap.
+local village = route:Build({}, {
+    {questID=455,name="Innkeeper errand",mapID=1413,x=.520,y=.300,
+        giverID=101,giverName="Innkeeper"},
+    {questID=456,name="Scout report",mapID=1413,x=.520,y=.300,
+        giverID=102,giverName="Scout"},
+    {questID=457,name="Scout follow-up",mapID=1413,x=.521,y=.300,
+        giverID=102,giverName="Scout"},
+},1413,.52,.30,{level=14})
+equal(village.totalLocations,2,
+    "different known quest givers must remain separate collection stops")
+equal(#village.stops,2,
+    "both nearby quest givers appear in one collection circuit")
+local counts={}
+for _,stop in ipairs(village.stops) do
+    counts[stop.giverID]=stop.pickupCount
+end
+equal(counts[101],1,"innkeeper only offers own quest")
+equal(counts[102],2,"scout quests remain grouped together")
+local unknownVillage=route:Build({}, {
+    {questID=458,name="Unknown giver A",mapID=1413,x=.52,y=.30},
+    {questID=459,name="Unknown giver B",mapID=1413,x=.53,y=.30},
+},1413,.52,.30,{level=14})
+equal(unknownVillage.totalLocations,2,
+    "unknown givers are not assumed to be the same NPC across a village")
+
 -- Once the first quest is accepted, the remaining quests still form a
 -- pickup stop. Grouping must not permanently discard their IDs.
 local afterAccept={hubQuests[2],hubQuests[3],hubQuests[4]}
