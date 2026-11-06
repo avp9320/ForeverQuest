@@ -439,8 +439,13 @@ function Route:Build(quests, pickups, mapID, playerX, playerY, options)
                     end
                 end
             end
+            -- Keep a collection phase triggered by a nearby quest giver
+            -- inside that hub, not a distant, denser pickup cluster.
+            local withinCollectionHub = not collectingHub
+                or candidate.kind ~= "pickup"
+                or distance(candidate.x, candidate.y, x, y) <= 0.035
             if not used[candidate.key] and candidate.kind == phase
-                and nearObjective
+                and nearObjective and withinCollectionHub
                 and (not emptyLogPickupTrip or not firstPickupX
                     or distance(candidate.x, candidate.y,
                         firstPickupX, firstPickupY) <= 0.035) then
