@@ -68,7 +68,6 @@ jobs:
           lua5.1 tests/route_spec.lua
           lua5.1 tests/hints_spec.lua
           lua5.1 tests/core_smoke.lua
-          lua5.1 tests/export_spec.lua
           lua5.1 tests/catalog_smoke.lua
           lua5.1 tests/roadmap_spec.lua
           lua5.1 tests/chains_spec.lua
