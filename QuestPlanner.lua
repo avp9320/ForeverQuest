@@ -573,7 +573,7 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
     -- Count quest opportunities, but rank zones by level-appropriate work.
     -- A low-level zone with dozens of trivial quests must not crowd out
     -- a zone with fewer useful quests at the player's current level.
-    local eligibleZones, travelHints, relevantZones = {}, {}, {}
+    local eligibleZones, travelHints, relevantZones, hubPoints = {}, {}, {}, {}
     if reachable then
         for _, info in ipairs(reachable) do
             eligibleZones[info.mapID] = 0
@@ -597,7 +597,7 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
     for _, id in ipairs(all) do
         if eligible(lib, id, level, active or {}, raceBit, classBit) then
             local starters = get(lib.Quest, id, "startedBy")
-            local seenZones = {}
+            local seenZones, starterPoints = {}, {}
             if type(starters) == "table" then
                 for _, entry in ipairs({
                     {db=lib.Npc, ids=starters[1], kind="NPC"},
@@ -610,8 +610,22 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
                                 if type(spawns) == "table" then
                                     for area in pairs(spawns) do
                                         local destination = maps[area] or area
-                                        if eligibleZones[destination] ~= nil then
-                                            seenZones[destination] = true
+                                        if eligibleZones[destination] ~= nil
+                                            and type(spawns[area]) == "table" then
+                                            for _, point in ipairs(spawns[area]) do
+                                                local x, y = point[1], point[2]
+                                                if type(x) == "number" and x >= 0 and x <= 100
+                                                    and type(y) == "number" and y >= 0 and y <= 100 then
+                                                    seenZones[destination] = true
+                                                    -- One location per quest per zone:
+                                                    -- duplicate NPC spawns must not
+                                                    -- manufacture a productive hub.
+                                                    if not starterPoints[destination] then
+                                                        starterPoints[destination] = {x=x/100,y=y/100}
+                                                    end
+                                                    break
+                                                end
+                                            end
                                         end
                                     end
                                 end
@@ -642,9 +656,34 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
                 if weight > 0 then
                     eligibleZones[dest] = eligibleZones[dest] + 1
                     relevantZones[dest] = (relevantZones[dest] or 0) + weight
+                    if starterPoints[dest] then
+                        hubPoints[dest] = hubPoints[dest] or {}
+                        hubPoints[dest][#hubPoints[dest]+1] = {
+                            x=starterPoints[dest].x, y=starterPoints[dest].y,
+                            weight=weight,
+                        }
+                    end
                 end
             end
         end
+    end
+    -- A coherent collection hub is more useful than equally many starters
+    -- scattered across a zone. Estimate the best local cluster of eligible,
+    -- level-relevant quest offers, using provisional map coordinates only.
+    -- Bound its influence so zone relevance and safe travel remain primary.
+    local function bestHubScore(points)
+        local best = 0
+        for _, center in ipairs(points or {}) do
+            local total = 0
+            for _, other in ipairs(points) do
+                local dx, dy = center.x-other.x, center.y-other.y
+                if dx*dx+dy*dy <= 0.035*0.035 then
+                    total = total + other.weight
+                end
+            end
+            if total > best then best = total end
+        end
+        return best
     end
     local options = {}
     for id, count in pairs(eligibleZones) do
@@ -659,8 +698,10 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
             end
             local hint = travelHints[id] or {}
             local hops = hint.hops or 1
+            local hubScore = bestHubScore(hubPoints[id])
             options[#options+1] = {
                 mapID=id, name=name, possibleQuests=count,
+                hubScore=hubScore,
                 relevantScore=relevantZones[id] or 0,
                 hops=hops, via=hint.via,
                 handoff=travel and travel:DescribeHandoff(hint, zoneLabels)
@@ -669,7 +710,8 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
                 -- with only a couple more possible quests.
                 -- Catalog opportunities remain primary; broad Horde progression
                 -- bands keep old starter zones from winning by raw volume.
-                merit=((relevantZones[id] or 0) / (hops * hops))
+                merit=((relevantZones[id] or 0)
+                    + math.min(5, hubScore) * 0.25) / (hops * hops)
                     * (travel and travel.ProgressionWeight
                         and travel:ProgressionWeight(id, level,
                             UnitFactionGroup and UnitFactionGroup("player")) or 1),
