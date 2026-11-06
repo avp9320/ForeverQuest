@@ -42,4 +42,21 @@ assert(zones[1].relevantScore>zones[2].relevantScore,
     "relevance score reflects character level")
 assert(zones[2].possibleQuests==12,
     "raw quest counts are retained for display")
+-- Zone recommendations are cached; joining or leaving a group must
+-- invalidate solo-safety decisions without requiring a level change.
+local partySize=1
+GetNumGroupMembers=function() return partySize end
+quests[2001].suggestedGroup=3
+planner:Invalidate()
+local solo=planner:GetNextZones(1411,22,{},3)
+assert(solo[1].mapID==1440 and solo[1].possibleQuests==3,
+    "solo zone ranking excludes group-only quests")
+partySize=3
+local grouped=planner:GetNextZones(1411,22,{},3)
+assert(grouped[1].possibleQuests==4,
+    "joining a party recalculates zone opportunities instead of using solo cache")
+partySize=1
+local soloAgain=planner:GetNextZones(1411,22,{},3)
+assert(soloAgain[1].possibleQuests==3,
+    "leaving the party restores solo-safe zone recommendations")
 print("ForeverQuest zone relevance tests passed")
