@@ -564,6 +564,10 @@ function Planner:GetNextZones(currentMap, level, active, maxResults)
             and UnitFactionGroup("player") or "?")
         .. ":" .. tostring(UnitRace and select(3, UnitRace("player")) or "?")
         .. ":" .. tostring(UnitClass and select(3, UnitClass("player")) or "?")
+        .. ":" .. tostring(math.max(1, tonumber(GetNumGroupMembers
+            and GetNumGroupMembers()) or 1))
+    -- Group changes alter which elite/group quests are safe to recommend.
+    -- Never reuse a solo zone ranking after joining a party (or vice versa).
     if zonesMemo.key == key then return zonesMemo.options end
 
     -- Count quest opportunities, but rank zones by level-appropriate work.
@@ -752,10 +756,13 @@ function Planner:Scan(mapID, level, active, force)
     for id in pairs(active) do sorted[#sorted+1] = id end
     table.sort(sorted)
     local key = table.concat(sorted, ",")
+    local partySize = math.max(1, tonumber(GetNumGroupMembers
+        and GetNumGroupMembers()) or 1)
     if not force and cache.mapID == mapID and cache.level == level
-        and cache.activeKey == key then return end
+        and cache.activeKey == key and cache.partySize == partySize then return end
     self:Invalidate()
     cache.mapID, cache.level, cache.activeKey = mapID, level, key
+    cache.partySize = partySize
     cache.scanning = true
     cache.status = "Scanning possible quest pickups"
     local ok, ids = pcall(lib.Quest.GetAllIds)
