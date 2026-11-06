@@ -59,4 +59,32 @@ partySize=1
 local soloAgain=planner:GetNextZones(1411,22,{},3)
 assert(soloAgain[1].possibleQuests==3,
     "leaving the party restores solo-safe zone recommendations")
+-- Equal quest volume and level relevance: prefer a compact quest hub
+-- over scattered quest givers, rather than choosing by map ID.
+local hubQuests, hubIDs, hubNPCs = {}, {}, {}
+for i=1,4 do
+    local id=3000+i
+    hubIDs[#hubIDs+1]=id
+    hubQuests[id]={questLevel=22,requiredLevel=18,startedBy={{id}}}
+    hubNPCs[id]={spawns={[17]={{20*i,20}}}}
+end
+for i=1,4 do
+    local id=4000+i
+    hubIDs[#hubIDs+1]=id
+    hubQuests[id]={questLevel=22,requiredLevel=18,startedBy={{id}}}
+    hubNPCs[id]={spawns={[331]={{50+i*0.2,50}}}}
+end
+quests, ids, npc = hubQuests, hubIDs, hubNPCs
+planner:Invalidate()
+local hubs=planner:GetNextZones(1411,22,{},3)
+assert(#hubs==2 and hubs[1].mapID==1440,
+    "a dense Ashenvale hub should beat equally relevant scattered Barrens starters")
+assert(hubs[1].hubScore==4 and hubs[2].hubScore==1,
+    "hub score counts unique eligible quest offers within a local cluster")
+-- Malformed coordinates cannot count as actionable zone opportunities.
+npc[4004].spawns={[331]={{150,-3}}}
+planner:Invalidate()
+local invalid=planner:GetNextZones(1411,22,{},3)
+assert(invalid[1].possibleQuests==3,
+    "invalid NPC spawn coordinates cannot inflate zone opportunity counts")
 print("ForeverQuest zone relevance tests passed")
