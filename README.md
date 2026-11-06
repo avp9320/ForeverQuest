@@ -119,20 +119,12 @@ quest-item button. Nothing is continuously posted to chat.
   map opens. These are observations, not a claim every alt can fly there.
 - No external telemetry or account data uploads.
 
-## Quick character export for leveling help
+## Character report exporter moved to its own addon
 
-Use `/fqexport` to open a copyable character report. The report includes
-character name, race/class/level, XP, money, current zone and position,
-equipped gear, professions, active quest IDs and objective progress, bag
-contents, and the last 20 quest turn-ins observed **since this feature was
-installed**. The exporter is independent of the route planner.
-
-The report is selected automatically: press **Ctrl+C** in the game window and
-paste it into your conversation. Use **Refresh report** to capture updates,
-**Select all** if you change the selection, and **Esc** to close the window.
-Nothing is transmitted automatically; the player chooses what to share.
-Coordinates, professions, and equipment are included when the Forever client
-exposes the corresponding API.
+The manually copyable character report has been moved out of ForeverQuest.
+Install the independent **ForeverExport** addon and use `/fexport`.
+ForeverQuest no longer registers `/fqexport` or collects export-only
+recent turn-ins. The quest planner works without ForeverExport.
 
 ## Install
 
