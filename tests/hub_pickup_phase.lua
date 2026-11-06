@@ -19,4 +19,25 @@ assert(plan.stops[3].kind=="objective","objective follows local pickup circuit")
 for _,stop in ipairs(plan.stops) do
     assert(stop.questID~=603,"distant speculative pickup must not hijack active circuit")
 end
+-- A distant, high-density pickup cluster can be eligible because it lies
+-- along an accepted objective. It must not steal the initial collection
+-- phase from the quest giver standing beside the player.
+local distantCluster = {
+    {questID=701,name="Local starter",mapID=1411,x=.40,y=.50},
+}
+for i=1,7 do
+    distantCluster[#distantCluster+1] = {
+        questID=710+i,name="Remote starter "..i,mapID=1411,
+        x=.75+(i%3)*.002,y=.75+math.floor(i/3)*.002,
+    }
+end
+local circuit = route:Build({
+    {questID=700,title="Remote objective",complete=false,
+        waypointMap=1411,waypointX=.75,waypointY=.75,questLevel=10},
+},distantCluster,1411,.40,.50,{level=10})
+assert(circuit.stops[1] and circuit.stops[1].questID==701,
+    "nearby starter must win initial pickup phase over distant cluster")
+assert(circuit.stops[2] and circuit.stops[2].kind=="objective",
+    "after local collection, proceed to the accepted objective")
+
 print("hub pickup phase: OK")
