@@ -1803,6 +1803,7 @@ end
 
 FQ:RegisterEvent("PLAYER_LOGIN")
 FQ:RegisterEvent("PLAYER_LEVEL_UP")
+FQ:RegisterEvent("GROUP_ROSTER_UPDATE")
 FQ:RegisterEvent("PLAYER_ENTERING_WORLD")
 FQ:RegisterEvent("QUEST_LOG_UPDATE")
 FQ:RegisterEvent("QUEST_ACCEPTED")
@@ -1843,7 +1844,8 @@ FQ:SetScript("OnEvent", function(_, event, ...)
             end
             if Planner and (
                 event == "QUEST_ACCEPTED" or event == "QUEST_REMOVED" or
-                event == "QUEST_TURNED_IN" or event == "PLAYER_LEVEL_UP"
+                event == "QUEST_TURNED_IN" or event == "PLAYER_LEVEL_UP" or
+                event == "GROUP_ROSTER_UPDATE"
             ) then Planner:Invalidate() end
             RefreshFocus()
             if event=="PLAYER_REGEN_ENABLED" and Items and Items.Refresh then
